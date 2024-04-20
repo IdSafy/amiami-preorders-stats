@@ -17,6 +17,7 @@ dependencies = [
     "autoflake>=2.3.1",
     "isort>=5.13.2",
     "black>=24.3.0",
+    "click>=8.1.7",
 ]
 requires-python = ">=3.11"
 readme = "README.md"

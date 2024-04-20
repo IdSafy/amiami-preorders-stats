@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime
 from pprint import pprint
 from typing import Any
@@ -181,21 +182,6 @@ class AmiAmiApi:
 
     def login(self, login: str, password: str) -> bool:
 
-        self.login_data = {
-            "RSuccess": True,
-            "RValue": None,
-            "RMessage": "OK",
-            "login": {
-                "token": "*",
-                "direction_id": 382741557,
-            },
-            "session": {
-                "mcode": "*",
-                "ransu": "*",
-            },
-        }
-        return True
-
         login_data = {
             "lang": "eng",
             "email": login,
@@ -204,19 +190,23 @@ class AmiAmiApi:
         }
 
         response = self.session.post(
-            url=f"{self.api_root_url}/v1.0/login",
+            url=f"{self.api_root_url}/login",
             headers=self._get_headers(),
             data=login_data,
         )
         if response.json()["RSuccess"] == True:
             self.login_data = response.json()
-            print(self.login_data)
+            logging.info("Login successfull")
             return True
+
+        try:
+            error_message = response.json()["RMessage"]
+        except:
+            error_message = response.status_code
+        logging.info(f"Login failed: {error_message}")
         return False
 
     def get_orders(self) -> list[ApiOrder]:
-        # https://api.amiami.com/api/v1.0/watchlist?mcode=7001167076&ransu=btznSvmXnbiuXd8O0izTrmb2YwdUSXr5&lang=eng&pagemax=20
-        # https://api-secure.amiami.com/api/v1.0/orders?lang=eng&status_ids=1,2,5,6,7,10,999&from_date=&to_date=&search_key=id&pagemax=20&pagecnt=1
 
         response = requests.get(
             f"{self.api_root_url}/orders",
