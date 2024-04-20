@@ -3,8 +3,13 @@ import logging
 from collections import defaultdict
 from datetime import date
 from functools import reduce
+from os import environ
 
 import click
+<<<<<<< HEAD
+=======
+from dotenv import load_dotenv
+>>>>>>> 8b77f19 (feat: add external creds load)
 from pydantic import TypeAdapter
 from pydantic.json import pydantic_encoder
 
@@ -12,11 +17,13 @@ import amiami_api
 
 logging.basicConfig(level=logging.INFO)
 
+load_dotenv()
 
-def get_preorder_items() -> list[amiami_api.ApiOrderInfo]:
+
+def get_preorder_items(login: str, password: str) -> list[amiami_api.ApiOrderInfo]:
     api = amiami_api.AmiAmiApi()
 
-    login_status = api.login(login="*", password="*")
+    login_status = api.login(login=login, password=password)
     if not login_status:
         logging.warning("Canceling updating preorders")
 
@@ -34,7 +41,15 @@ def get_preorder_items() -> list[amiami_api.ApiOrderInfo]:
 @click.command()
 @click.option("-f", "file", default="preorders.json")
 def update(file: str):
-    items = get_preorder_items()
+    login = environ.get("AMIAMI_LOGIN")
+    if login is None:
+        logging.error("AMIAMI_LOGIN env must be set")
+        return
+    password = environ.get("AMIAMI_PASSWORD")
+    if login is None:
+        logging.error("AMIAMI_PASSWORD env must be set")
+        return
+    items = get_preorder_items(login, password)
     with open(file, "w") as file:
         json.dump(items, file, default=pydantic_encoder)
 
