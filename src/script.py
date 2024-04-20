@@ -1,10 +1,12 @@
 import json
 import logging
 import re
+import sys
 from collections import defaultdict
 from datetime import date
 from functools import reduce
 from os import environ
+from typing import TextIO
 
 import click
 <<<<<<< HEAD
@@ -49,6 +51,55 @@ def classify_items(
     return categories_buckets
 
 
+def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
+    orders_by_month: dict[date, list[amiami_api.ApiOrderInfo]] = defaultdict(list)
+    for order in orders:
+        orders_by_month[order.scheduled_release].append(order)
+
+    print("By month stats:", file=stream)
+    for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
+        cost = reduce(lambda a, b: a + b.total, month_orders, 0)
+        n_items = reduce(lambda a, b: a + len(b.items), month_orders, 0)
+        print(
+            f"{month};{n_items:2} items;{cost:>9.2f} yen;{cost * 0.0066:>7.2f} usd",
+            file=stream,
+        )
+
+    print("------\n\n", file=stream)
+
+    all_items: list[amiami_api.ApiItem] = []
+    print("Detailed stats:", file=stream)
+    for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
+        for order in month_orders:
+            for item in order.items:
+                in_stock_text = (
+                    "in stock" if item.stock_flg == item.amount else "not in stock"
+                )
+                print(
+                    f"{month}; order {order.d_no}: {in_stock_text:>12};{item.price:>9.2f} yen;{item.price * 0.0066:>7.2f} usd; {item.sname}",
+                    file=stream,
+                )
+                all_items.append(item)
+        print("------", file=stream)
+
+    total_cost = reduce(lambda a, b: a + b.price, all_items, 0)
+    total_n_items = len(all_items)
+
+    print("\n", file=stream)
+    print("Categories:", file=stream)
+    categories = classify_items(all_items)
+    for category, items in sorted(categories.items(), key=lambda t: t[0]):
+        print(f"{category}: {len(items)}", file=stream)
+    print("------", file=stream)
+
+    print("\n", file=stream)
+    print(f"Total items: {total_n_items}", file=stream)
+    print(
+        f"Summary cost: {total_cost:>9.2f} yen or {total_cost * 0.0066:>7.2f} usd ",
+        file=stream,
+    )
+
+
 @click.command()
 @click.option("-f", "file", default="preorders.json")
 def update(file: str):
@@ -77,44 +128,7 @@ def stats(file: str):
     except:
         logging.error("Failed to read file")
 
-    orders_by_month: dict[date, list[amiami_api.ApiOrderInfo]] = defaultdict(list)
-    for order in orders:
-        orders_by_month[order.scheduled_release].append(order)
-
-    print("By month stats:")
-    for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
-        cost = reduce(lambda a, b: a + b.total, month_orders, 0)
-        n_items = reduce(lambda a, b: a + len(b.items), month_orders, 0)
-        print(
-            f"{month}: {n_items:4}, cost: {cost:>9.2f} yen or {cost * 0.0066:>7.2f} usd"
-        )
-
-    print("------\n\n")
-
-    all_items: list[amiami_api.ApiItem] = []
-    print("Detailed stats:")
-    for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
-        for order in month_orders:
-            for item in order.items:
-                print(
-                    f"{month}:{item.ds_no}:{order.d_no}:{item.price:>9.2f} yen:{item.price * 0.0066:>7.2f} usd: {item.sname}"
-                )
-                all_items.append(item)
-        print("------")
-
-    total_cost = reduce(lambda a, b: a + b.price, all_items, 0)
-    total_n_items = len(all_items)
-
-    print("\n")
-    print("Categories:")
-    categories = classify_items(all_items)
-    for category, items in sorted(categories.items(), key=lambda t: t[0]):
-        print(f"{category}: {len(items)}")
-    print("------")
-
-    print("\n")
-    print(f"Total items: {total_n_items}")
-    print(f"Summary cost: {total_cost:>9.2f} yen or {total_cost * 0.0066:>7.2f} usd ")
+    print_stats(sys.stdout, orders)
 
 
 @click.group()

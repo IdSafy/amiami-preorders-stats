@@ -241,10 +241,10 @@ class AmiAmiApi:
 
     def get_orders_info(self) -> list[ApiOrderInfo]:
         orders = self.get_orders()
-        logging.debug(f"Got {len(orders)} orders")
+        logging.info(f"Got {len(orders)} orders")
         orders_info: list[ApiOrderInfo] = []
         for order in orders:
             order_info = self.get_order_info(order.d_no)
             orders_info.append(order_info)
-            logging.debug(f"Got order {order.d_no} info")
+            logging.info(f"Got order {order.d_no} info")
         return orders_info
