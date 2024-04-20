@@ -34,6 +34,10 @@ class ApiOrder(BaseModel):
         return value.rstrip()
 
 
+class OrderWithItems(ApiOrder):
+    items: list["ApiItem"]
+
+
 class ApiItem(BaseModel):
     ds_no: str
     scode: str
@@ -232,3 +236,13 @@ class AmiAmiApi:
         )
         order_info = TypeAdapter(ApiOrderInfo).validate_python(response.json()["order"])
         return order_info
+
+    def get_orders_info(self) -> list[ApiOrderInfo]:
+        orders = self.get_orders()
+        logging.debug(f"Got {len(orders)} orders")
+        orders_info: list[ApiOrderInfo] = []
+        for order in orders:
+            order_info = self.get_order_info(order.d_no)
+            orders_info.append(order_info)
+            logging.debug(f"Got order {order.d_no} info")
+        return orders_info

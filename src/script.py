@@ -20,22 +20,15 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 
-def get_preorder_items(login: str, password: str) -> list[amiami_api.ApiOrderInfo]:
+def get_orders(login: str, password: str) -> list[amiami_api.ApiOrderInfo]:
     api = amiami_api.AmiAmiApi()
 
     login_status = api.login(login=login, password=password)
     if not login_status:
         logging.warning("Canceling updating preorders")
 
-    orders = api.get_orders()
-    logging.info(f"Got {len(orders)} orders")
-
-    items: list[amiami_api.ApiOrderInfo] = []
-    for order in orders:
-        order_info = api.get_order_info(order.d_no)
-        logging.info(f"Got order {order.d_no} info")
-        items += order_info.items
-    return items
+    orders = api.get_orders_info()
+    return orders
 
 
 @click.command()
@@ -49,9 +42,10 @@ def update(file: str):
     if login is None:
         logging.error("AMIAMI_PASSWORD env must be set")
         return
-    items = get_preorder_items(login, password)
+
+    orders = get_orders(login, password)
     with open(file, "w") as file:
-        json.dump(items, file, default=pydantic_encoder)
+        json.dump(orders, file, default=pydantic_encoder)
 
 
 @click.command()
@@ -59,35 +53,39 @@ def update(file: str):
 def stats(file: str):
     try:
         with open(file, "r") as file:
-            items = TypeAdapter(list[amiami_api.ApiItem]).validate_json(file.read())
+            orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
+                file.read()
+            )
     except:
         logging.error("Failed to read file")
 
-    items_by_month: dict[date, list[amiami_api.ApiItem]] = defaultdict(list)
-    for item in items:
-        items_by_month[item.releasedate].append(item)
+    orders_by_month: dict[date, list[amiami_api.ApiOrderInfo]] = defaultdict(list)
+    for order in orders:
+        orders_by_month[order.scheduled_release].append(order)
 
     print("By month stats:")
-    for month, month_items in sorted(items_by_month.items(), key=lambda i: i[0]):
-        cost = reduce(lambda a, b: a + b.price, month_items, 0)
+    for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
+        cost = reduce(lambda a, b: a + b.total, month_orders, 0)
+        n_items = reduce(lambda a, b: a + len(b.items), month_orders, 0)
         print(
-            f"{month}: {len(month_items):4}, cost: {cost:>9.2f} yen or {cost * 0.0066:>7.2f} usd"
+            f"{month}: {n_items:4}, cost: {cost:>9.2f} yen or {cost * 0.0066:>7.2f} usd"
         )
 
     print("------\n\n")
 
+    total_cost = 0
     print("Detailed stats:")
-    for month, month_items in sorted(items_by_month.items(), key=lambda i: i[0]):
-        # cost = reduce(lambda a, b: a + b.price, month_items, 0)
-        for item in month_items:
-            print(
-                f"{month}:{item.ds_no}:{item.price:>9.2f} yen:{item.price * 0.0066:>7.2f} usd: {item.sname}"
-            )
+    for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
+        for order in month_orders:
+            for item in order.items:
+                print(
+                    f"{month}:{item.ds_no}:{order.d_no}:{item.price:>9.2f} yen:{item.price * 0.0066:>7.2f} usd: {item.sname}"
+                )
+                total_cost += item.price
         print("------")
 
     print("\n")
-    cost = reduce(lambda a, b: a + b.price, items, 0)
-    print(f"Summary cost: {cost:>9.2f} yen or {cost * 0.0066:>7.2f} usd ")
+    print(f"Summary cost: {total_cost:>9.2f} yen or {total_cost * 0.0066:>7.2f} usd ")
 
 
 @click.group()
