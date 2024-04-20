@@ -1,0 +1,20 @@
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project]
+name = "amiami-api"
+authors = [
+    {name = "IdSaf", email = "idolarod1@gmail.com"},
+]
+license = {file = "LICENSE",text = "MIT"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
+version = "0.1.0"
+description = "Default template for PDM package"
+dependencies = []
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.pdm]
+distribution = true
