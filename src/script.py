@@ -9,10 +9,7 @@ from os import environ
 from typing import TextIO
 
 import click
-<<<<<<< HEAD
-=======
 from dotenv import load_dotenv
->>>>>>> 8b77f19 (feat: add external creds load)
 from pydantic import TypeAdapter
 from pydantic.json import pydantic_encoder
 
