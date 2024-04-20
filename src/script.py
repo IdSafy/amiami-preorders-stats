@@ -36,10 +36,26 @@ items_by_month: dict[date, list[amiami_api.ApiItem]] = defaultdict(list)
 for item in items:
     items_by_month[item.releasedate].append(item)
 
-for month, items in sorted(items_by_month.items(), key=lambda i: i[0]):
-    cost = reduce(lambda a, b: a + b.price, items, 0)
+print("By month stats:")
+for month, month_items in sorted(items_by_month.items(), key=lambda i: i[0]):
+    cost = reduce(lambda a, b: a + b.price, month_items, 0)
     print(
-        f"{month}: {len(items):4}, cost: {cost:>10.2f} yen or {cost * 0.0066:>10.2f} usd"
+        f"{month}: {len(month_items):4}, cost: {cost:>10.2f} yen or {cost * 0.0066:>10.2f} usd"
     )
 
-# pprint(items_by_month)
+print("------\n\n")
+
+print("Detailed stats:")
+for month, month_items in sorted(items_by_month.items(), key=lambda i: i[0]):
+    cost = reduce(lambda a, b: a + b.price, month_items, 0)
+    print(
+        f"{month}: {len(month_items):4}, cost: {cost:>10.2f} yen or {cost * 0.0066:>10.2f} usd"
+    )
+    for item in month_items:
+        print(
+            f"\t{item.ds_no} ({item.price:>10.2f} yen or {item.price * 0.0066:>10.2f} usd): {item.sname}"
+        )
+
+print("------\n\n")
+cost = reduce(lambda a, b: a + b.price, items, 0)
+print(f"Summary cost: {cost:>10.2f} yen or {cost * 0.0066:>10.2f} usd ")
