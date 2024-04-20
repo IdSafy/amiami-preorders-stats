@@ -8,6 +8,8 @@ from pydantic import BaseModel, TypeAdapter, validator
 
 
 def amiami_month_date_validate(value: str) -> date:
+    if value == "This Month":
+        return date.today().replace(day=1)
     last_token = value.split(" ")[-1]
     if last_token.find("/") != -1:
         return datetime.strptime(last_token, "%Y/%m")
