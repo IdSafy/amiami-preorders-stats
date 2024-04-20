@@ -7,12 +7,17 @@ name = "amiami-api"
 authors = [
     {name = "IdSaf", email = "idolarod1@gmail.com"},
 ]
-license = {file = "LICENSE",text = "MIT"}
+license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
-dynamic = ["version", "description"]
 version = "0.1.0"
 description = "Default template for PDM package"
-dependencies = []
+dependencies = [
+    "requests>=2.31.0",
+    "pydantic>=2.6.4",
+    "autoflake>=2.3.1",
+    "isort>=5.13.2",
+    "black>=24.3.0",
+]
 requires-python = ">=3.11"
 readme = "README.md"
 
