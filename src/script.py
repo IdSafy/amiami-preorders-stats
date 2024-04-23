@@ -4,12 +4,13 @@ import re
 import sys
 from collections import defaultdict
 from datetime import date
-from functools import reduce
+from functools import reduce, wraps
 from os import environ
 from typing import TextIO
 
 import click
 from dotenv import load_dotenv
+from print_color import print
 from pydantic import TypeAdapter
 from pydantic.json import pydantic_encoder
 
@@ -53,48 +54,75 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
     for order in orders:
         orders_by_month[order.scheduled_release].append(order)
 
-    print("By month stats:", file=stream)
+    @wraps(print)
+    def _print(*args, **kwargs):
+        kwargs.setdefault("file", stream)
+        kwargs.setdefault("end", "")
+        print(*args, **kwargs)
+
+    _print("By month stats:\n")
     for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
         cost = reduce(lambda a, b: a + b.total, month_orders, 0)
         n_items = reduce(lambda a, b: a + len(b.items), month_orders, 0)
-        print(
-            f"{month};{n_items:2} items;{cost:>9.2f} yen;{cost * 0.0066:>7.2f} usd",
-            file=stream,
-        )
-
-    print("------\n\n", file=stream)
+        month_str = month.strftime("%Y-%m")
+        _print(f"{month_str};{n_items:2} items;{cost:>9.2f}¥ /{cost * 0.0066:>7.2f}$\n")
+    _print("------\n------\n\n")
 
     all_items: list[amiami_api.ApiItem] = []
-    print("Detailed stats:", file=stream)
+    _print("Detailed stats:\n")
+    order_color_cycle = [
+        "blue",
+        "purple",
+        "yellow",
+        "red",
+        "magenta",
+        "cyan",
+    ]
+    previous_item_order = None
+    previous_month = None
+    order_color_index = -1
+    month_color_index = 2
     for month, month_orders in sorted(orders_by_month.items(), key=lambda i: i[0]):
         for order in month_orders:
             for item in order.items:
-                in_stock_text = (
-                    "in stock" if item.stock_flg == item.amount else "not in stock"
+                in_stock_text, in_stock_text_color = (
+                    ("in stock", "green")
+                    if item.stock_flg == item.amount
+                    else ("not in stock", "white")
                 )
-                print(
-                    f"{month}; order {order.d_no}: {in_stock_text:>12};{item.price:>9.2f} yen;{item.price * 0.0066:>7.2f} usd; {item.sname}",
-                    file=stream,
+
+                if previous_item_order != order.d_no:
+                    order_color_index = (order_color_index + 1) % len(order_color_cycle)
+                    previous_item_order = order.d_no
+                order_color = order_color_cycle[order_color_index]
+
+                month_str = month.strftime("%Y-%m")
+                if previous_month != month_str:
+                    month_color_index = (month_color_index + 1) % len(order_color_cycle)
+                    previous_month = month_str
+                month_color = order_color_cycle[month_color_index]
+
+                _print(f"{month_str};", color=month_color)
+                _print(f" order ")
+                _print(f"{order.d_no}; ", color=order_color)
+                _print(f"{in_stock_text:>12};", color=in_stock_text_color)
+                _print(
+                    f"{item.price:>9.2f}¥ /{item.price * 0.0066:>7.2f}$; {item.sname}\n"
                 )
                 all_items.append(item)
-        print("------", file=stream)
+        # _print("------\n")
+    _print("------\n\n")
 
+    print("Categories:", file=stream)
     total_cost = reduce(lambda a, b: a + b.price, all_items, 0)
     total_n_items = len(all_items)
-
-    print("\n", file=stream)
-    print("Categories:", file=stream)
     categories = classify_items(all_items)
     for category, items in sorted(categories.items(), key=lambda t: t[0]):
-        print(f"{category}: {len(items)}", file=stream)
-    print("------", file=stream)
+        _print(f"{category}: {len(items)}\n")
+    _print("------\n------\n\n")
 
-    print("\n", file=stream)
-    print(f"Total items: {total_n_items}", file=stream)
-    print(
-        f"Summary cost: {total_cost:>9.2f} yen or {total_cost * 0.0066:>7.2f} usd ",
-        file=stream,
-    )
+    _print(f"Total items: {total_n_items}\n")
+    _print(f"Summary cost: {total_cost:>9.2f}¥ / {total_cost * 0.0066:>7.2f}$\n")
 
 
 @click.command()

@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:877ba887fe0e2b47d78214691820a3fca24c2de670d30ac665fe89ea9f2a09bb"
+content_hash = "sha256:77d6573bd9a8a8c85e8d47b1c0dd1eb16726cf3fd9f8f303ea0a6006b1ebb3ed"
 
 [[package]]
 name = "annotated-types"
@@ -200,6 +200,17 @@ groups = ["default"]
 files = [
     {file = "platformdirs-4.2.0-py3-none-any.whl", hash = "sha256:0614df2a2f37e1a662acbd8e2b25b92ccf8632929bc6d43467e17fe89c75e068"},
     {file = "platformdirs-4.2.0.tar.gz", hash = "sha256:ef0cc731df711022c174543cb70a9b5bd22e5a9337c8624ef2c2ceb8ddad8768"},
+]
+
+[[package]]
+name = "print-color"
+version = "0.4.6"
+requires_python = ">=3.7,<4.0"
+summary = "A simple package to print in color to the terminal"
+groups = ["default"]
+files = [
+    {file = "print_color-0.4.6-py3-none-any.whl", hash = "sha256:494bd1cdb84daf481f0e63bd22b3c32f7d52827d8f5d9138a96bb01ca8ba9299"},
+    {file = "print_color-0.4.6.tar.gz", hash = "sha256:d3aafc1666c8d31a85fffa6ee8e4f269f5d5e338d685b4e6179915c71867c585"},
 ]
 
 [[package]]
