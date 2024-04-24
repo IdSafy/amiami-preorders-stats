@@ -115,13 +115,13 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
 
                 _print(f"{month_str};", color=month_color)
                 _print(" order ")
-                _print(f"{order.d_no}; ", color=order_color)
+                _print(f"{link(order.page_link, order.d_no)}; ", color=order_color)
                 _print(f"{in_stock_text:>12};", color=in_stock_text_color)
                 _print(
                     f"{item.price:>9.2f}¥ /{item.price * 0.0066:>7.2f}$; {link(item.page_link, item.sname)}\n"
                 )
                 all_items.append(item)
-        # _print("------\n")
+    _print("------\n")
     _print("------\n\n")
 
     print("Categories:", file=stream)

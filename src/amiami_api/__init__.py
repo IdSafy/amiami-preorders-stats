@@ -1,8 +1,13 @@
 import logging
+import urllib.parse
 from datetime import date, datetime
 
 import requests
 from pydantic import BaseModel, TypeAdapter, validator
+
+AMIAMI_STORE_BASE_URL = "https://www.amiami.com/"
+AMIAMI_ACCOUNT_BASE_URL = "https://secure.amiami.com/"
+AMIAMI_API_BASE_URL = "https://api-secure.amiami.com/api/v1.0/"
 
 
 def amiami_month_date_validate(value: str) -> date:
@@ -63,7 +68,9 @@ class ApiItem(BaseModel):
 
     @property
     def page_link(self) -> str:
-        return f"https://www.amiami.com/eng/detail?scode={self.scode}"
+        return urllib.parse.urljoin(
+            AMIAMI_STORE_BASE_URL, f"eng/detail?scode={self.scode}"
+        )
 
 
 class ApiOrderInfo(BaseModel):
@@ -81,6 +88,12 @@ class ApiOrderInfo(BaseModel):
     @validator("d_status")
     def parse_d_status(cls, value: str):
         return value.rstrip()
+
+    @property
+    def page_link(self) -> str:
+        return urllib.parse.urljoin(
+            AMIAMI_ACCOUNT_BASE_URL, f"eng/bill/2?d_no={self.d_no}"
+        )
 
     # "d_no": "226318854",
     #         "order_type": 1,
@@ -169,7 +182,7 @@ class ApiOrderInfo(BaseModel):
 
 
 class AmiAmiApi:
-    api_root_url: str = "https://api-secure.amiami.com/api/v1.0"
+    api_root_url: str = AMIAMI_API_BASE_URL
     session: requests.Session
     login_data: dict | None = None
 
@@ -195,18 +208,19 @@ class AmiAmiApi:
             "password": password,
             "c_ransu": None,
         }
-
         response = self.session.post(
-            url=f"{self.api_root_url}/login",
+            url=urllib.parse.urljoin(self.api_root_url, "login"),
             headers=self._get_headers(),
             data=login_data,
         )
-        if response.json()["RSuccess"]:
-            self.login_data = response.json()
-            logging.info("Login successfull")
-            return True
-
         try:
+            json_response = response.json()
+            assert isinstance(json_response, dict)
+            if json_response.get("RSuccess", False):
+                self.login_data = response.json()
+                logging.info("Login successfull")
+                return True
+
             error_message = response.json()["RMessage"]
         except:
             error_message = response.status_code
@@ -221,7 +235,7 @@ class AmiAmiApi:
             "lang": "eng",
         }
         response = requests.get(
-            f"{self.api_root_url}/orders",
+            url=urllib.parse.urljoin(self.api_root_url, "orders"),
             headers=self._get_headers(),
             params=params,
         )
@@ -230,7 +244,7 @@ class AmiAmiApi:
 
     def get_order_info(self, order_number: str) -> ApiOrderInfo:
         response = requests.get(
-            f"{self.api_root_url}/orders/detail",
+            url=urllib.parse.urljoin(self.api_root_url, "orders/detail"),
             headers=self._get_headers(),
             params={
                 "d_no": order_number,
