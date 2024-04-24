@@ -114,7 +114,7 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
                 month_color = order_color_cycle[month_color_index]
 
                 _print(f"{month_str};", color=month_color)
-                _print(f" order ")
+                _print(" order ")
                 _print(f"{order.d_no}; ", color=order_color)
                 _print(f"{in_stock_text:>12};", color=in_stock_text_color)
                 _print(
@@ -137,27 +137,27 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
 
 
 @click.command()
-@click.option("-f", "file", default="preorders.json")
-def update(file: str):
+@click.option("-f", "filename", default="preorders.json")
+def update(filename: str):
     login = environ.get("AMIAMI_LOGIN")
     if login is None:
         logging.error("AMIAMI_LOGIN env must be set")
         return
     password = environ.get("AMIAMI_PASSWORD")
-    if login is None:
+    if password is None:
         logging.error("AMIAMI_PASSWORD env must be set")
         return
 
     orders = get_orders(login, password)
-    with open(file, "w") as file:
+    with open(filename, "w") as file:
         json.dump(orders, file, default=pydantic_encoder)
 
 
 @click.command()
-@click.option("-f", "file", default="preorders.json")
-def stats(file: str):
+@click.option("-f", "filename", default="preorders.json")
+def stats(filename: str):
     try:
-        with open(file, "r") as file:
+        with open(filename, "r") as file:
             orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
                 file.read()
             )

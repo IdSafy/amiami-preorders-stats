@@ -21,8 +21,8 @@ class ApiOrder(BaseModel):
     d_no: str
     d_status: str
     mypage_lock_flg: int
-    order_date: datetime  # '2023-09-29T17:58:43'
-    scheduled_release: date  #'Jun-2024'
+    order_date: datetime
+    scheduled_release: date
     subtotal: int
 
     @validator("scheduled_release", pre=True)
@@ -189,7 +189,6 @@ class AmiAmiApi:
         return headers
 
     def login(self, login: str, password: str) -> bool:
-
         login_data = {
             "lang": "eng",
             "email": login,
@@ -202,7 +201,7 @@ class AmiAmiApi:
             headers=self._get_headers(),
             data=login_data,
         )
-        if response.json()["RSuccess"] == True:
+        if response.json()["RSuccess"]:
             self.login_data = response.json()
             logging.info("Login successfull")
             return True
@@ -215,16 +214,16 @@ class AmiAmiApi:
         return False
 
     def get_orders(self) -> list[ApiOrder]:
-
+        params: dict[str, str | int] = {
+            "status_ids": "1,2,5,6,7,10,999",
+            "search_key": "id",
+            "pagemax": 20,
+            "lang": "eng",
+        }
         response = requests.get(
             f"{self.api_root_url}/orders",
             headers=self._get_headers(),
-            params={
-                "status_ids": "1,2,5,6,7,10,999",
-                "search_key": "id",
-                "pagemax": 20,
-                "lang": "eng",
-            },
+            params=params,
         )
         orders = TypeAdapter(list[ApiOrder]).validate_python(response.json()["orders"])
         return orders
