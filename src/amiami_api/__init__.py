@@ -1,7 +1,5 @@
 import logging
 from datetime import date, datetime
-from pprint import pprint
-from typing import Any
 
 import requests
 from pydantic import BaseModel, TypeAdapter, validator
