@@ -63,6 +63,10 @@ class ApiItem(BaseModel):
     def parse_releasedate(cls, value: str):
         return amiami_month_date_validate(value)
 
+    @property
+    def page_link(self) -> str:
+        return f"https://www.amiami.com/eng/detail?scode={self.scode}"
+
 
 class ApiOrderInfo(BaseModel):
     d_no: str

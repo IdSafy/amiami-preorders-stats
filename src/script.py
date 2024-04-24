@@ -21,6 +21,17 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 
+def link(uri: str, label: str | None = None) -> str:
+    if label is None:
+        label = uri
+    parameters = ""
+
+    # OSC 8 ; params ; URI ST <name> OSC 8 ;; ST
+    escape_mask = "\033]8;{};{}\033\\{}\033]8;;\033\\"
+
+    return escape_mask.format(parameters, uri, label)
+
+
 def get_orders(login: str, password: str) -> list[amiami_api.ApiOrderInfo]:
     api = amiami_api.AmiAmiApi()
 
@@ -107,7 +118,7 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
                 _print(f"{order.d_no}; ", color=order_color)
                 _print(f"{in_stock_text:>12};", color=in_stock_text_color)
                 _print(
-                    f"{item.price:>9.2f}¥ /{item.price * 0.0066:>7.2f}$; {item.sname}\n"
+                    f"{item.price:>9.2f}¥ /{item.price * 0.0066:>7.2f}$; {link(item.page_link, item.sname)}\n"
                 )
                 all_items.append(item)
         # _print("------\n")
