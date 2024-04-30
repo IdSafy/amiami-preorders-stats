@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import sys
+from datetime import date, timedelta
 from functools import reduce, wraps
 from itertools import groupby
 from os import environ
@@ -40,6 +41,33 @@ def get_orders(login: str, password: str) -> list[amiami_api.ApiOrderInfo]:
 
     orders = api.get_orders_info()
     return orders
+
+
+def get_new_orders(
+    login: str, password: str, known_orders: list[amiami_api.ApiOrderInfo]
+) -> list[amiami_api.ApiOrderInfo]:
+    api = amiami_api.AmiAmiApi()
+
+    login_status = api.login(login=login, password=password)
+    if not login_status:
+        logging.warning("Canceling updating orders")
+
+    knows_orders_by_d_no = {order.d_no: order for order in known_orders}
+
+    def filter_function(order: amiami_api.ApiOrder) -> bool:
+        if order.d_no not in knows_orders_by_d_no:
+            return True  # update new orders
+        if order.d_status != knows_orders_by_d_no[order.d_no].d_status:
+            return True  # update orders with changed status
+        if "Pre-order" in order.d_status:
+            return True  # update pre-orders as they are up to change
+        logging.info(f"Skip updating {order.d_no} order")
+        return False
+
+    new_orders = api.get_orders_info(filter_function=filter_function)
+    new_orders_by_d_no = {order.d_no: order for order in new_orders}
+    knows_orders_by_d_no.update(new_orders_by_d_no)
+    return list(knows_orders_by_d_no.values())
 
 
 ItemWithRelatedData = tuple[
@@ -157,7 +185,8 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
 
 @click.command()
 @click.option("-f", "filename", default="preorders.json")
-def update(filename: str):
+@click.option("--full", "full", is_flag=True, default=False)
+def update(full: bool, filename: str):
     login = environ.get("AMIAMI_LOGIN")
     if login is None:
         logging.error("AMIAMI_LOGIN env must be set")
@@ -167,14 +196,28 @@ def update(filename: str):
         logging.error("AMIAMI_PASSWORD env must be set")
         return
 
-    orders = get_orders(login, password)
+    if not full:
+        try:
+            with open(filename, "r") as file:
+                known_orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
+                    file.read()
+                )
+        except Exception:
+            logging.warning(
+                f"File {filename} doesn't exist or corrupted. Soft update will behave as full update"
+            )
+            known_orders = []
+        orders = get_new_orders(login, password, known_orders)
+    else:
+        orders = get_orders(login, password)
     with open(filename, "w") as file:
         json.dump(orders, file, default=pydantic_encoder)
 
 
 @click.command()
 @click.option("-f", "filename", default="preorders.json")
-def stats(filename: str):
+@click.option("-a", "all", default=False)
+def stats(filename: str, all: bool):
     try:
         with open(filename, "r") as file:
             orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
@@ -183,7 +226,17 @@ def stats(filename: str):
     except:
         logging.error("Failed to read file")
 
-    print_stats(sys.stdout, orders)
+    if all:
+        filter_function = None
+    else:
+        last_month = date.today() - timedelta(weeks=5)
+        filter_function = (
+            lambda order: order.scheduled_release > last_month
+            and order.d_status not in ["Shipped"]
+        )
+
+    filtered_orders = list(filter(filter_function, orders))
+    print_stats(sys.stdout, filtered_orders)
 
 
 @click.group()

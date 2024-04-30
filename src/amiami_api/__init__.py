@@ -1,6 +1,8 @@
 import logging
 import urllib.parse
 from datetime import date, datetime
+from enum import Enum
+from typing import Any, Callable, Literal, TypeVar
 
 import requests
 from pydantic import BaseModel, TypeAdapter, validator
@@ -13,6 +15,15 @@ AMIAMI_API_BASE_URL = "https://api-secure.amiami.com/api/v1.0/"
 def amiami_month_date_validate(value: str) -> date:
     if value == "This Month":
         return date.today().replace(day=1)
+    if value == "Before Last Month":
+        today = date.today()
+        before_last_month_month = (((today.month - 1) - 2) % 12) + 1
+        before_last_month_year = today.year
+        if before_last_month_month > today.month:
+            before_last_month_year = today.year - 1
+        return today.replace(
+            day=1, month=before_last_month_month, year=before_last_month_year
+        )
     last_token = value.split(" ")[-1]
     if last_token.find("/") != -1:
         return datetime.strptime(last_token, "%Y/%m")
@@ -181,6 +192,30 @@ class ApiOrderInfo(BaseModel):
     #     }
 
 
+ItemType = TypeVar("ItemType")
+
+
+class SearchResult(BaseModel):
+    total_results: int
+
+
+class BaseApiResponse(BaseModel):
+    RSuccess: bool
+    RValue: None | Any
+    RMessage: Literal["OK"]
+    search_result: SearchResult
+
+
+class ApiOrdersResponse(BaseApiResponse):
+    orders: list[ApiOrder]
+
+
+class OrderType(str, Enum):
+    all = "str"
+    open = "open"
+    shipped = "shipped"
+
+
 class AmiAmiApi:
     api_root_url: str = AMIAMI_API_BASE_URL
     session: requests.Session
@@ -200,6 +235,14 @@ class AmiAmiApi:
                 }
             )
         return headers
+
+    @staticmethod
+    def _get_status_ids_from_order_type(order_type: OrderType) -> str:
+        return {
+            OrderType.all: "1,2,3,4,5,6,7,10,999",
+            OrderType.open: "1,2,5,6,7,10,999",
+            OrderType.shipped: "3,4",
+        }[order_type]
 
     def login(self, login: str, password: str) -> bool:
         login_data = {
@@ -227,20 +270,30 @@ class AmiAmiApi:
         logging.info(f"Login failed: {error_message}")
         return False
 
-    def get_orders(self) -> list[ApiOrder]:
+    def get_orders(self, order_type: OrderType = OrderType.all) -> list[ApiOrder]:
+        all_orders: list[ApiOrder] = []
         params: dict[str, str | int] = {
-            "status_ids": "1,2,5,6,7,10,999",
+            "status_ids": self._get_status_ids_from_order_type(order_type),
             "search_key": "id",
             "pagemax": 20,
             "lang": "eng",
+            "pagecnt": 1,
         }
-        response = requests.get(
-            url=urllib.parse.urljoin(self.api_root_url, "orders"),
-            headers=self._get_headers(),
-            params=params,
-        )
-        orders = TypeAdapter(list[ApiOrder]).validate_python(response.json()["orders"])
-        return orders
+        while True:
+            response = requests.get(
+                url=urllib.parse.urljoin(self.api_root_url, "orders"),
+                headers=self._get_headers(),
+                params=params,
+            )
+            response_object = TypeAdapter(ApiOrdersResponse).validate_python(
+                response.json()
+            )
+            all_orders += response_object.orders
+            if len(all_orders) == response_object.search_result.total_results:
+                break
+            assert isinstance(params["pagecnt"], int)
+            params["pagecnt"] += 1
+        return all_orders
 
     def get_order_info(self, order_number: str) -> ApiOrderInfo:
         response = requests.get(
@@ -254,11 +307,16 @@ class AmiAmiApi:
         order_info = TypeAdapter(ApiOrderInfo).validate_python(response.json()["order"])
         return order_info
 
-    def get_orders_info(self) -> list[ApiOrderInfo]:
-        orders = self.get_orders()
+    def get_orders_info(
+        self,
+        order_type: OrderType = OrderType.all,
+        filter_function: Callable[[ApiOrder], bool] | None = None,
+    ) -> list[ApiOrderInfo]:
+        orders = self.get_orders(order_type)
         logging.info(f"Got {len(orders)} orders")
+        filtered_orders = list(filter(filter_function, orders))
         orders_info: list[ApiOrderInfo] = []
-        for order in orders:
+        for order in filtered_orders:
             order_info = self.get_order_info(order.d_no)
             orders_info.append(order_info)
             logging.info(f"Got order {order.d_no} info")
