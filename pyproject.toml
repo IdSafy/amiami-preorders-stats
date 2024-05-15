@@ -26,5 +26,8 @@ dependencies = [
 requires-python = ">=3.11"
 readme = "README.md"
 
+[project.scripts]
+amiami-api = "amiami_api.cli:cli"
+
 [tool.pdm]
 distribution = true
