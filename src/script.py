@@ -216,7 +216,7 @@ def update(full: bool, filename: str):
 
 @click.command()
 @click.option("-f", "filename", default="preorders.json")
-@click.option("-a", "all", default=False)
+@click.option("-a", "all", default=False, is_flag=True)
 def stats(filename: str, all: bool):
     try:
         with open(filename, "r") as file:
