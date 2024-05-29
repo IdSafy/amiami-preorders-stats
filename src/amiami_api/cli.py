@@ -54,17 +54,7 @@ def get_new_orders(
 
     knows_orders_by_d_no = {order.d_no: order for order in known_orders}
 
-    def filter_function(order: amiami_api.ApiOrder) -> bool:
-        if order.d_no not in knows_orders_by_d_no:
-            return True  # update new orders
-        if order.d_status != knows_orders_by_d_no[order.d_no].d_status:
-            return True  # update orders with changed status
-        if "Pre-order" in order.d_status:
-            return True  # update pre-orders as they are up to change
-        logging.info(f"Skip updating {order.d_no} order")
-        return False
-
-    new_orders = api.get_orders_info(filter_function=filter_function)
+    new_orders = api.get_orders_info(order_type=amiami_api.OrderType.open)
     new_orders_by_d_no = {order.d_no: order for order in new_orders}
     knows_orders_by_d_no.update(new_orders_by_d_no)
     return list(knows_orders_by_d_no.values())
