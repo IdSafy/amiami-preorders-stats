@@ -174,9 +174,9 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
 
 
 @click.command()
-@click.option("-f", "filename", default="preorders.json")
-@click.option("--full", "full", is_flag=True, default=False)
-def update(full: bool, filename: str):
+@click.option("-f", "filename", default="preorders.json", help="state file")
+@click.option("-a", "--all", "all", is_flag=True, default=False)
+def update(all: bool, filename: str):
     login = environ.get("AMIAMI_LOGIN")
     if login is None:
         logging.error("AMIAMI_LOGIN env must be set")
@@ -186,7 +186,7 @@ def update(full: bool, filename: str):
         logging.error("AMIAMI_PASSWORD env must be set")
         return
 
-    if not full:
+    if not all:
         try:
             with open(filename, "r") as file:
                 known_orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
@@ -205,8 +205,8 @@ def update(full: bool, filename: str):
 
 
 @click.command()
-@click.option("-f", "filename", default="preorders.json")
-@click.option("-a", "all", default=False, is_flag=True)
+@click.option("-f", "filename", default="preorders.json", help="state file")
+@click.option("-a", "--all",  "all", default=False, is_flag=True)
 def stats(filename: str, all: bool):
     try:
         with open(filename, "r") as file:
