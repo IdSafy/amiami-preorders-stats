@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -12,9 +13,9 @@ import click
 from dotenv import load_dotenv
 from print_color import print
 from pydantic import JsonValue, TypeAdapter
-from pydantic.json import pydantic_encoder
+from pydantic_core import to_jsonable_python
 
-import amiami_api
+from amiami_api.api import AmiAmiApi, ApiItem, ApiOrderInfo, OrderType
 
 logging.basicConfig(level=logging.INFO)
 
@@ -32,41 +33,44 @@ def link(uri: str, label: str | None = None) -> str:
     return escape_mask.format(parameters, uri, label)
 
 
-def get_orders(login: str, password: str) -> list[amiami_api.ApiOrderInfo]:
-    api = amiami_api.AmiAmiApi()
-
-    login_status = api.login(login=login, password=password)
-    if not login_status:
-        logging.warning("Canceling updating preorders")
-
-    orders = api.get_orders_info()
-    return orders
+async def get_order_info(api: AmiAmiApi, d_no: str) -> ApiOrderInfo:
+    logging.info(f"Updating order {d_no}")
+    order = api.get_order_info(d_no)
+    return order
 
 
-def get_new_orders(
-    login: str, password: str, known_orders: list[amiami_api.ApiOrderInfo]
-) -> list[amiami_api.ApiOrderInfo]:
-    api = amiami_api.AmiAmiApi()
+async def get_orders_infos(api: AmiAmiApi, orders_numbers: list[str]) -> list[ApiOrderInfo]:
+    tasks = [get_order_info(api, d_no) for d_no in orders_numbers]
+    orders_infos = await asyncio.gather(*tasks)
+    return orders_infos
+
+
+def get_new_orders(login: str, password: str, known_orders_infos: list[ApiOrderInfo]) -> list[ApiOrderInfo]:
+    api = AmiAmiApi()
 
     login_status = api.login(login=login, password=password)
     if not login_status:
         logging.warning("Canceling updating orders")
 
-    knows_orders_by_d_no = {order.d_no: order for order in known_orders}
+    closed_orders_numbers = [order.d_no for order in known_orders_infos if not order.is_open]
+    all_orders = api.get_orders(order_type=OrderType.all)
+    up_to_update_orders_numbers = [order.d_no for order in all_orders if order.d_no not in closed_orders_numbers]
 
-    new_orders = api.get_orders_info(order_type=amiami_api.OrderType.open)
-    new_orders_by_d_no = {order.d_no: order for order in new_orders}
-    knows_orders_by_d_no.update(new_orders_by_d_no)
-    return list(knows_orders_by_d_no.values())
+    order_info_by_number = {order.d_no: order for order in known_orders_infos if order.d_no not in closed_orders_numbers}
+
+    logging.info(f"Found {len(up_to_update_orders_numbers)} orders to update")
+    updated_orders_infos = asyncio.run(get_orders_infos(api, up_to_update_orders_numbers))
+    for updated_order_info in updated_orders_infos:
+        order_info_by_number[updated_order_info.d_no] = updated_order_info
+
+    return list(order_info_by_number.values())
 
 
-ItemWithRelatedData = tuple[
-    amiami_api.ApiItem, amiami_api.ApiOrderInfo, dict[str, JsonValue]
-]
+ItemWithRelatedData = tuple[ApiItem, ApiOrderInfo, dict[str, JsonValue]]
 ItemsTable = list[ItemWithRelatedData]
 
 
-def flatten_items(orders: list[amiami_api.ApiOrderInfo]) -> ItemsTable:
+def flatten_items(orders: list[ApiOrderInfo]) -> ItemsTable:
     flat_items: ItemsTable = []
     for order in orders:
         for item in order.items:
@@ -74,7 +78,7 @@ def flatten_items(orders: list[amiami_api.ApiOrderInfo]) -> ItemsTable:
     return flat_items
 
 
-def classify_item(item: amiami_api.ApiItem) -> str:
+def classify_item(item: ApiItem) -> str:
     if item.sname.lower().find("nendoroid") != -1:
         return "nendoroid"
     scale_match = re.search(r"\d\/\d", item.sname)
@@ -88,13 +92,13 @@ def classify_items(items: ItemsTable) -> None:
         metadata["category"] = classify_item(item)
 
 
-def prepare_items_table(orders: list[amiami_api.ApiOrderInfo]) -> ItemsTable:
+def prepare_items_table(orders: list[ApiOrderInfo]) -> ItemsTable:
     item_table = flatten_items(orders)
     classify_items(item_table)
     return item_table
 
 
-def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
+def print_stats(stream: TextIO, orders: list[ApiOrderInfo]) -> None:
     @wraps(print)
     def _print(*args, **kwargs):
         kwargs.setdefault("file", stream)
@@ -108,7 +112,7 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
     _print("By month stats:\n")
     for month, month_orders_iterator in orders_by_month:
         month_orders = list(month_orders_iterator)
-        cost = reduce(lambda a, b: a + b.total, month_orders, 0)
+        cost = reduce(lambda a, b: a + b.subtotal, month_orders, 0)
         n_items = reduce(lambda a, b: a + len(b.items), month_orders, 0)
         month_str = month.strftime("%Y-%m")
         _print(f"{month_str};{n_items:2} items;{cost:>9.2f}¥ /{cost * 0.0066:>7.2f}$\n")
@@ -128,14 +132,10 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
     previous_month = None
     order_color_index = -1
     month_color_index = 2
-    for item, order, metadata in sorted(
-        items_table, key=lambda pair: (pair[1].scheduled_release, pair[0].price)
-    ):
+    for item, order, metadata in sorted(items_table, key=lambda pair: (pair[1].scheduled_release, pair[0].price)):
         month = order.scheduled_release
 
-        in_stock_text, in_stock_text_color = (
-            ("in stock", "green") if item.stock_flg == item.amount else ("N/A", "white")
-        )
+        in_stock_text, in_stock_text_color = ("in stock", "green") if item.stock_flg == item.amount else ("N/A", "white")
 
         if previous_item_order != order.d_no:
             order_color_index = (order_color_index + 1) % len(order_color_cycle)
@@ -152,9 +152,7 @@ def print_stats(stream: TextIO, orders: list[amiami_api.ApiOrderInfo]) -> None:
         _print(" order ")
         _print(f"{link(order.page_link, order.d_no)}; ", color=order_color)
         _print(f"{in_stock_text:>8};", color=in_stock_text_color)
-        _print(
-            f"{item.price:>9.2f}¥ /{item.price * 0.0066:>7.2f}$; {link(item.page_link, item.sname)}\n"
-        )
+        _print(f"{item.price:>9.2f}¥ /{item.price * 0.0066:>7.2f}$; {link(item.page_link, item.sname)}\n")
     _print("------\n------\n\n")
 
     print("Categories:", file=stream)
@@ -189,41 +187,35 @@ def update(all: bool, filename: str):
     if not all:
         try:
             with open(filename, "r") as file:
-                known_orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
-                    file.read()
-                )
-        except Exception:
-            logging.warning(
-                f"File {filename} doesn't exist or corrupted. Soft update will behave as full update"
-            )
+                known_orders = TypeAdapter(list[ApiOrderInfo]).validate_json(file.read())
+        except Exception as exception:
+            logging.exception(exception)
+            logging.warning(f"File {filename} doesn't exist or corrupted. Soft update will behave as full update")
             known_orders = []
         orders = get_new_orders(login, password, known_orders)
     else:
-        orders = get_orders(login, password)
+        orders = get_new_orders(login, password, [])
     with open(filename, "w") as file:
-        json.dump(orders, file, default=pydantic_encoder)
+        json.dump(to_jsonable_python(orders), file)
 
 
 @click.command()
 @click.option("-f", "filename", default="preorders.json", help="state file")
-@click.option("-a", "--all",  "all", default=False, is_flag=True)
+@click.option("-a", "--all", "all", default=False, is_flag=True)
 def stats(filename: str, all: bool):
     try:
         with open(filename, "r") as file:
-            orders = TypeAdapter(list[amiami_api.ApiOrderInfo]).validate_json(
-                file.read()
-            )
-    except:
-        logging.error("Failed to read file")
+            orders = TypeAdapter(list[ApiOrderInfo]).validate_json(file.read())
+    except Exception as exception:
+        logging.error("Failed to read file", exc_info=exception)
 
     if all:
         filter_function = None
     else:
         last_month = date.today() - timedelta(weeks=5)
-        filter_function = (
-            lambda order: order.scheduled_release > last_month
-            and order.d_status not in ["Shipped"]
-        )
+
+        def filter_function(order: ApiOrderInfo) -> bool:
+            return order.scheduled_release > last_month and order.d_status not in ["Shipped"]
 
     filtered_orders = list(filter(filter_function, orders))
     print_stats(sys.stdout, filtered_orders)

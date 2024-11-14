@@ -1,7 +1,3 @@
-[build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
-
 [project]
 name = "amiami-api"
 authors = [
@@ -26,8 +22,42 @@ dependencies = [
 requires-python = ">=3.11"
 readme = "README.md"
 
-[project.scripts]
-amiami-api = "amiami_api.cli:cli"
+[tool.pdm.scripts]
+api.cmd = "src/amiami_api/cli.py"
+api.env = {PYTHONPATH = "src/"}
 
 [tool.pdm]
-distribution = true
+distribution = false
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "responses>=0.25.3",
+    "pytest>=8.3.3",
+]
+
+[tool.flake8]
+max-line-length = 150
+
+[tool.black]
+line-length = 150
+
+
+[tool.mypy]
+no_implicit_optional = true
+disable_error_code = [
+  "import-untyped",
+]
+pretty = true
+check_untyped_defs = true
+allow_subclassing_any = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "src"
+]
+# asyncio_default_fixture_loop_scope = "function"
+# asyncio_mode = "auto"
