@@ -1,4 +1,3 @@
-import logging
 import urllib.parse
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -8,7 +7,15 @@ from typing import Any, Callable, Literal, TypeVar, cast
 
 import aiohttp
 from loguru import logger
-from pydantic import BaseModel, TypeAdapter, ValidationInfo, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    TypeAdapter,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+)
 
 from amiami_api import utils
 
@@ -41,8 +48,8 @@ def amiami_month_date_validate(value: str | datetime | date) -> date:
 
 
 class OrderCommon(BaseModel):
-    d_no: str
-    d_status: str
+    id: str = Field(validation_alias=AliasChoices("d_no", "id"))
+    status: str = Field(validation_alias=AliasChoices("d_status", "status"))
     scheduled_release: date
     subtotal: int
 
@@ -50,57 +57,45 @@ class OrderCommon(BaseModel):
     def parse_scheduled_release(cls, value: str | datetime | date, info: ValidationInfo) -> date:
         return amiami_month_date_validate(value)
 
-    @field_validator("d_status")
+    @field_validator("status")
     def parse_d_status(cls, value: str, info: ValidationInfo) -> str:
         return value.rstrip()
 
-    @property
+    @computed_field
     def is_open(self) -> bool:
-        return self.d_status.lower() not in ["shipped", "cancelled"]
+        return self.status.lower() not in ["shipped", "cancelled"]
 
 
-class ApiOrder(OrderCommon):
-    scheduled_release: date
-    mypage_lock_flg: int
+class Order(OrderCommon):
+    pass
 
 
-class OrderWithItems(ApiOrder):
-    items: list["ApiItem"]
-
-
-class ApiItem(BaseModel):
-    ds_no: str
+class Item(BaseModel):
+    id: str = Field(validation_alias=AliasChoices("ds_no", "id"))
     scode: str
-    sname: str
+    name: str = Field(validation_alias=AliasChoices("sname", "name"))
     thumb_url: str  # "/images/product/thumb300/242/FIGURE-168653.jpg",
-    thumb_alt: str  # "FIGURE-168653.jpg",
-    thumb_title: (str)  # "Date A Live V Kurumi Tokisaki Wa-Bunny 1/7 Scale Figure[FURYU]",
-    thumb_agelimit: int
-    releasedate: date
+    release_date: date = Field(validation_alias=AliasChoices("releasedate", "release_date"))
     price: int
     amount: int
-    stock_flg: int
-    # max_cartin_count: None,
-    # stock: None,
-    # mixed_gcode: null,
-    # mixed_message: null
+    in_stock_flag: int = Field(validation_alias=AliasChoices("stock_flg", "in_stock_flag"))
 
-    @field_validator("releasedate", mode="before")
+    @field_validator("release_date", mode="before")
     def parse_releasedate(cls, value: str | datetime | date) -> date:
         return amiami_month_date_validate(value)
 
-    @property
+    @computed_field
     def page_link(self) -> str:
         return urllib.parse.urljoin(AMIAMI_STORE_BASE_URL, f"eng/detail?scode={self.scode}")
 
 
-class ApiOrderInfo(OrderCommon):
+class OrderInfo(OrderCommon):
     scheduled_release: date
-    items: list[ApiItem]
+    items: list[Item]
 
-    @property
+    @computed_field
     def page_link(self) -> str:
-        return urllib.parse.urljoin(AMIAMI_ACCOUNT_BASE_URL, f"eng/bill/2?d_no={self.d_no}")
+        return urllib.parse.urljoin(AMIAMI_ACCOUNT_BASE_URL, f"eng/bill/2?d_no={self.id}")
 
 
 ItemType = TypeVar("ItemType")
@@ -114,15 +109,15 @@ class BaseApiResponse(BaseModel):
     RSuccess: bool
     RValue: None | Any
     RMessage: Literal["OK"]
-    search_result: SearchResult
 
 
 class ApiOrdersResponse(BaseApiResponse):
-    orders: list[ApiOrder]
+    orders: list[Order]
+    search_result: SearchResult
 
 
 class ApiOrderInfoResponse(BaseApiResponse):
-    order: ApiOrderInfo
+    order: OrderInfo
 
 
 class OrderType(str, Enum):
@@ -191,7 +186,7 @@ class AmiAmiApi:
             assert isinstance(json_response, dict)
             if json_response.get("RSuccess", False):
                 self._login_data = await response.json()
-                logging.info("Login successfull")
+                logger.info("Login successfull")
                 assert self._login_data is not None
                 self._session.headers.update(
                     {
@@ -203,12 +198,12 @@ class AmiAmiApi:
             error_message = (await response.json())["RMessage"]
         except Exception:
             error_message = response.status
-        logging.error(f"Login failed: {error_message}")
+        logger.error(f"Login failed: {error_message}")
         return False
 
     @ensure_login_decorator
-    async def get_orders(self, order_type: OrderType = OrderType.all) -> list[ApiOrder]:
-        orders: list[ApiOrder] = []
+    async def get_orders(self, order_type: OrderType = OrderType.all) -> list[Order]:
+        orders: list[Order] = []
         params: dict[str, str | int] = {
             "status_ids": self._get_status_ids_from_order_type(order_type),
             "search_key": "id",
@@ -233,7 +228,7 @@ class AmiAmiApi:
         return orders
 
     @ensure_login_decorator
-    async def get_order_info(self, order_number: str) -> ApiOrderInfo:
+    async def get_order_info(self, order_number: str) -> OrderInfo:
         response = await self._session.get(
             url=urllib.parse.urljoin(self.api_root_url, "orders/detail"),
             params={
@@ -241,5 +236,6 @@ class AmiAmiApi:
                 "lang": "eng",
             },
         )
+        logger.debug(await response.json())
         api_order_info = TypeAdapter(ApiOrderInfoResponse).validate_python(await response.json())
         return api_order_info.order

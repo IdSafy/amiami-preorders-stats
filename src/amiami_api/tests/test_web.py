@@ -8,11 +8,11 @@ from fastapi.testclient import TestClient
 from yarl import URL
 
 from amiami_api.api import (
-    ApiItem,
-    ApiOrder,
-    ApiOrderInfo,
     ApiOrderInfoResponse,
     ApiOrdersResponse,
+    Item,
+    Order,
+    OrderInfo,
     SearchResult,
 )
 from amiami_api.di import DIContainer
@@ -33,30 +33,30 @@ def di_container(tmp_path: Path) -> DIContainer:
 
 @pytest.fixture
 def test_amiami_api_response_data() -> dict:
-    pre_order_1_order_info = ApiOrderInfo(
-        d_no="test",
-        d_status="pre-order",
+    pre_order_1_order_info = OrderInfo(
+        id="test",
+        status="pre-order",
         scheduled_release="May-2025",
         subtotal=10000,
         items=[
-            ApiItem(
-                ds_no="test",
+            Item(
+                id="test",
                 scode="test",
-                sname="test",
+                name="test",
                 thumb_url="test",
                 thumb_alt="test",
                 thumb_title="test",
                 thumb_agelimit=0,
-                releasedate="May-2025",
+                release_date="May-2025",
                 price=10000,
                 amount=1,
-                stock_flg=1,
+                in_stock_flag=1,
             )
         ],
     )
-    pre_order_1_order = ApiOrder(
-        d_no=pre_order_1_order_info.d_no,
-        d_status=pre_order_1_order_info.d_status,
+    pre_order_1_order = Order(
+        id=pre_order_1_order_info.id,
+        status=pre_order_1_order_info.status,
         scheduled_release=pre_order_1_order_info.scheduled_release,
         subtotal=pre_order_1_order_info.subtotal,
         mypage_lock_flg=0,
@@ -124,7 +124,7 @@ async def test_get_order(client: TestClient, test_amiami_api_response_data: dict
     assert len(di_container.store().get_orders()) == 1
     saved_order = di_container.store().get_order("test")
     assert saved_order is not None
-    assert saved_order.d_no == "test"
+    assert saved_order.id == "test"
 
 
 async def test_get_items(client: TestClient, test_amiami_api_response_data: dict, di_container: DIContainer, mock_response: aioresponses) -> None:
@@ -149,4 +149,4 @@ async def test_get_items(client: TestClient, test_amiami_api_response_data: dict
     assert len(di_container.store().get_orders()) == 1
     saved_order = di_container.store().get_order("test")
     assert saved_order is not None
-    assert saved_order.d_no == "test"
+    assert saved_order.id == "test"

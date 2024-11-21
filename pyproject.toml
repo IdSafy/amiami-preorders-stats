@@ -17,13 +17,17 @@ dependencies = [
     "dependency-injector>=4.43.0",
     "pydantic-settings>=2.6.1",
     "aiohttp[speedups]>=3.11.2",
+    "uvicorn>=0.32.0",
 ]
 requires-python = "==3.13.*"
 readme = "README.md"
 
 [tool.pdm.scripts]
-app.cmd = "src/amiami_api/main.py"
+app.cmd = "uvicorn amiami_api.web:app"
 app.env = {PYTHONPATH = "src/"}
+
+npm.cmd = "npm"
+npm.working_dir = "frontend"
 
 [tool.pdm]
 distribution = false
