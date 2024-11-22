@@ -50,8 +50,8 @@ def amiami_month_date_validate(value: str | datetime | date) -> date:
 class OrderCommon(BaseModel):
     id: str = Field(validation_alias=AliasChoices("d_no", "id"))
     status: str = Field(validation_alias=AliasChoices("d_status", "status"))
-    scheduled_release: date
-    subtotal: int
+    scheduled_release: date = Field(validation_alias=AliasChoices("scheduled_release", "date"), serialization_alias="date")
+    price: int = Field(validation_alias=AliasChoices("subtotal", "price"), serialization_alias="price")
 
     @field_validator("scheduled_release", mode="before")
     def parse_scheduled_release(cls, value: str | datetime | date, info: ValidationInfo) -> date:
@@ -75,7 +75,7 @@ class Item(BaseModel):
     scode: str
     name: str = Field(validation_alias=AliasChoices("sname", "name"))
     thumb_url: str  # "/images/product/thumb300/242/FIGURE-168653.jpg",
-    release_date: date = Field(validation_alias=AliasChoices("releasedate", "release_date"))
+    release_date: date = Field(validation_alias=AliasChoices("releasedate", "release_date", "date"), serialization_alias="date")
     price: int
     amount: int
     in_stock_flag: int = Field(validation_alias=AliasChoices("stock_flg", "in_stock_flag"))
@@ -90,7 +90,6 @@ class Item(BaseModel):
 
 
 class OrderInfo(OrderCommon):
-    scheduled_release: date
     items: list[Item]
 
     @computed_field

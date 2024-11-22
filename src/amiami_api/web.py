@@ -53,7 +53,7 @@ async def update_orders(
     store: AmiAmiOrdersStore = Depends(Provide[DIContainer.store]),
     api: AmiAmiApi = Depends(Provide[DIContainer.api]),
 ) -> list[OrderInfo]:
-    orders = await api.get_orders(order_type)
+    orders, all_orders = await asyncio.gather(api.get_orders(order_type), api.get_orders(OrderType.all))
     semaphore = asyncio.Semaphore(3)
 
     async def fetch_order_info(order: Order) -> OrderInfo:
@@ -68,6 +68,9 @@ async def update_orders(
             logger.opt(exception=order_info).error("Error while fetching order info")
             continue
         store.update_order(order_info.id, order_info)
+
+    store.clean_up_not_existing_orders([order.id for order in all_orders])
+    
     return store.get_orders(order_type)
 
 

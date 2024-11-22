@@ -37,7 +37,7 @@ def test_amiami_api_response_data() -> dict:
         id="test",
         status="pre-order",
         scheduled_release="May-2025",
-        subtotal=10000,
+        price=10000,
         items=[
             Item(
                 id="test",
@@ -58,7 +58,7 @@ def test_amiami_api_response_data() -> dict:
         id=pre_order_1_order_info.id,
         status=pre_order_1_order_info.status,
         scheduled_release=pre_order_1_order_info.scheduled_release,
-        subtotal=pre_order_1_order_info.subtotal,
+        price=pre_order_1_order_info.price,
         mypage_lock_flg=0,
     )
     return {
