@@ -1,55 +1,79 @@
 <template>
-  <div class="buttonContainer">
+  <div class="mainContainer">
 
-    <Button @click="trigger_data_update" label="Update" />
+
+  <div class="buttonContainer">
+    
+    <Button @click="triggerDataUpdate" label="Update" />
     <Button @click="expandAll" label="Expand all" />
     <Button @click="collapseAll" label="Collapse all" />
   </div>
+  <Panel>
   <TreeTable 
   v-model:expandedKeys="expandedKeys" 
   :resizableColumns="false"
   :value="tree" 
   class="mt-6" 
   tableStyle="min-width: 10rem">
-  <Column sortField="date" sortable expander style="width: 10rem;">
+  <Column sortField="date" sortable expander style="width: 13rem;">
     <template #body="{ node }">
       <a :href="node.data.page_link">{{ node.key }}</a>
     </template>
   </Column>
-  <Column field="amount" header="Amount" style="width: 5rem; justify-content: right;" class="dim right"></Column>
-  <Column header="Price" class="dim price right" >
+  <Column field="amount" header="Amount" class="dim right" style="width: 5rem;"></Column>
+  <Column header="Cost (¥)" class="dim price right" >
     <template #body="{ node }">
       {{ node.data.price.toLocaleString() + " ¥"}}
     </template>
   </Column>
-  <Column  class="dim price right" >
+  <Column header="Cost ($)"  class="dim price right" >
     <template #body="{ node }">
       {{ (node.data.price * yenToUsd).toLocaleString() + " $" }}
     </template>
   </Column>
-  <Column header="in stock" class="dim right" >
+  <Column header="In stock" class="dim right" style="width: 6rem;">
     <template #body="{ node }">
       <span :class="{ 'in-stock': node.data.in_stock_flag, 'out-of-stock': !node.data.in_stock_flag }">
         {{ node.data.in_stock_flag ? '✔️' : '❌' }}
       </span>
     </template>
   </Column>
-  <Column  header="Name" field="name" style="width: 70%;">
+  <Column  header="Name" field="name" style="width: auto;">
     
   </Column>
-</TreeTable>
-
-<div class="analytics">
-  <h3>Analytics</h3>
-  <p>Total Figures: {{ totalFigures }}</p>
-  <p>Figure Types Count:</p>
-  <ul>
-    <li v-for="(count, type) in figureTypesCount" :key="type">{{ type }}: {{ count }}</li>
-  </ul>
-  <p>Total cost: {{ totalCostYen.toLocaleString() }}¥ / {{ totalCostUsd.toLocaleString() }}$</p>
-  <div class="chart-container">
-    <canvas id="costPerMonthChart"></canvas>
-  </div>
+  </TreeTable>
+  </Panel>
+<Panel class="analytics">
+  <template #header>
+    <h3>Analytics</h3>
+  </template>
+  <Panel header="basic stats" toggleable class="basicAnalitics">
+    <DataTable id="byTypeDataTable" :value="Object.entries(figureTypesCount)" size="small" style="text-align: right;" :row-style="totalRowStyle">
+      <Column field="0" header="Type"></Column>
+      <Column header="Count" class="right">
+        <template #body="{ data }">
+          {{ data[1].count.toLocaleString() }}
+        </template>
+      </Column>
+      <Column header="Cost (¥)" class="right">
+        <template #body="{ data }">
+          {{ data[1].cost.toLocaleString() }}¥
+        </template>
+      </Column>
+      <Column header="Cost ($)" class="right">
+        <template #body="{ data }">
+          {{ (data[1].cost * yenToUsd).toLocaleString() }}$
+        </template>
+      </Column>
+    </DataTable>
+  </Panel >
+  <Divider />
+  <Panel header="charts">
+    <div class="chart-container">
+      <canvas id="costPerMonthChart"></canvas>
+    </div>
+  </Panel>
+</Panel>
 </div>
 <div v-if="loading" class="overlay">
   <ProgressSpinner />
@@ -57,17 +81,35 @@
 </template>
 
 <script setup>
-import TreeTable from 'primevue/treetable';
-import Column from 'primevue/column';
-import Button from 'primevue/button';
-import ProgressSpinner from 'primevue/progressspinner';
-import { ref } from 'vue';
-import { computed, onMounted } from 'vue';
-import Chart from 'chart.js/auto';
+import { ref, computed, onMounted } from 'vue';
 
-const totalFigures = computed(() => {
-  return ordersData.reduce((acc, order) => acc + order.items.length, 0);
-});
+import Button from 'primevue/button';
+import Column from 'primevue/column';
+import DataTable from 'primevue/datatable';
+import Divider from 'primevue/divider';
+import Panel from 'primevue/panel';
+import ProgressSpinner from 'primevue/progressspinner';
+import TreeTable from 'primevue/treetable';
+
+import Chart from 'chart.js/auto';
+Chart.defaults.color = "#fff";
+
+const yenToUsd = 0.0065
+
+const loading = ref(false)
+
+// expansion control
+
+const initExpandedKeys = (nodes, levelValue = true) => {
+  const keys = {};
+  nodes.forEach(node => {
+    keys[node.key] = levelValue;
+    if (node.children) {
+      Object.assign(keys, initExpandedKeys(node.children, false));
+    }
+  });
+  return keys;
+};
 
 const changeExpansion = (nodes, value) =>{
   const changeExpansionRecursiveFuncion = (nodes) => {
@@ -92,40 +134,53 @@ const collapseAll = () => {
   changeExpansion(tree.value, false);
 };
 
+// stats
+
 const figureTypesCount = computed(() => {
-  const typesCount = {};
+  var typesCount = {};
   ordersData.forEach(order => {
     order.items.forEach(item => {
       var type;
       const scaleMatch = item.name.match(/1\/\d{1,2}/);
       if (scaleMatch) {
-        type = `${scaleMatch[0]} Scale Figure`;
+        type = `${scaleMatch[0]} scale`;
       } else if (item.name.includes('Nendoroid')) {
-        type = 'Nendoroid';
+        type = 'nendoroid';
       } else if (item.scode.includes('GOODS')) {
-        type = 'Goods';
+        type = 'goods';
       } else {
-        type = 'Other';
+        type = 'other';
       }
       if (!typesCount[type]) {
-        typesCount[type] = 0;
+        typesCount[type] = { count: 0, cost: 0 };
       }
-      typesCount[type]++;
+      typesCount[type].count++;
+      typesCount[type].cost += item.price;
     });
   });
-  return Object.keys(typesCount).sort().reduce((acc, key) => {
+  
+  typesCount = Object.keys(typesCount).sort().reduce((acc, key) => {
     acc[key] = typesCount[key];
     return acc;
   }, {});
+  typesCount['TOTAL'] = {
+    count: ordersData.reduce((acc, order) => acc + order.items.length, 0),
+    cost: ordersData.reduce((acc, order) => acc + order.price, 0)
+  };
+
+  return typesCount
 });
 
-const totalCostYen = computed(() => {
-  return ordersData.reduce((acc, order) => acc + order.price, 0);
-});
 
-const totalCostUsd = computed(() => {
-  return (totalCostYen.value * yenToUsd);
-});
+const totalRowStyle = (data) => {
+  if (data[0] === 'TOTAL') {
+    return { 
+      'font-weight': 'bold' ,
+    };
+  }
+}; 
+
+// chart
 
 const costPerMonth = computed(() => {
   const costByMonth = {};
@@ -152,20 +207,17 @@ const costPerMonth = computed(() => {
   }, {});
 });
 
-
-onMounted(() => {
-  const ctx = document.getElementById('costPerMonthChart').getContext('2d');
+const createChart = (ctx, data) => {
   new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: Object.keys(costPerMonth.value),
+      labels: Object.keys(data),
       datasets: [
-      {
-        label: 'Cost per Month',
-        data: Object.values(costPerMonth.value),
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1,
+        {
+        label: 'cost per month',
+        data: Object.values(data),
+        backgroundColor: '#34d399',
+        borderWidth: 0,
         yAxisID: 'y'
       }
       ]
@@ -210,12 +262,9 @@ onMounted(() => {
       }
     }
   });
-  
-});
-const yenToUsd = 0.0065
+}
 
-const loading = ref(false)
-
+// basic data retrival and transformation
 
 const ordersData = [
 {
@@ -766,22 +815,22 @@ const ordersData = [
 }
 ]
 
-const get_orders_data = async () => {
+const getOrdersData = async () => {
   return ordersData
 }
 
-const update_data = async () =>  {
-  const new_data = await get_orders_data()
+const updateData = async () =>  {
+  const new_data = await getOrdersData()
   ordersData.splice(0, ordersData.length, ...new_data)
-  trigger_data_update()
+  triggerDataUpdate()
 }
 
-const trigger_data_update = async () => {
+const triggerDataUpdate = async () => {
   loading.value = true
   try {
     await new Promise(resolve => setTimeout(resolve, 2000));
-    await update_data()
-    tree.value = ordersDataToTree(await get_orders_data())
+    await updateData()
+    tree.value = ordersDataToTree(await getOrdersData())
   } finally {
     loading.value = false
   }
@@ -830,14 +879,12 @@ const ordersDataToTree = (ordersData) => {
   })
   return treeData.sort((a, b) => a.key < b.key ? -1 : 1)
 }
-
-
-
 const tree = ref(ordersDataToTree(ordersData))
-const expandedKeys = ref(tree.value.reduce((acc, node) => {
-  acc[node.key] = true;
-  return acc;
-}, {}))
+const expandedKeys = ref(initExpandedKeys(tree.value))
+
+onMounted(() => {
+  createChart(document.getElementById('costPerMonthChart').getContext('2d'), costPerMonth.value);
+});
 
 </script>
 
@@ -885,7 +932,14 @@ a {
   color: grey;
 }
 
-.p-treetable-tbody > tr > td.right > div{
+.p-treetable-tbody > tr > td.right > div,
+.p-treetable-thead > tr > th.right > div{  
+  justify-content: right;
+}
+
+.p-datatable-tbody > tr > td.right,
+.p-datatable-thead > tr > th.right > div {
+  text-align: right;
   justify-content: right;
 }
 .p-treetable-tbody > tr > td.price {
@@ -898,20 +952,26 @@ span.in-stock {
   text-shadow: 0 0 0 green;
 }
 .analytics {
-  margin-top: 20px;
-  padding: 20px;
-  border: 1px solid green;
-  border-radius: 10px;
-  color: white;
+  margin-top: 1rem;
   text-align: left;
 }
 .chart-container {
-  height: 30rem;
+  width: 40%;
+  color: white;
 }
 .buttonContainer{
   display: flex;
   justify-content: center;
   margin-top: 20px;
   gap: 20px;
+}
+.mainContainer{
+  display: flex;
+  flex-flow: column;
+  gap: 1rem;
+}
+
+#byTypeDataTable {
+  width: 40%;
 }
 </style>
