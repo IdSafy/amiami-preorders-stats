@@ -311,6 +311,7 @@ const triggerDataUpdate = async () => {
     await postUpdateDataRequest()
     tree.value = ordersDataToTree(await getOrdersData())
     expandedKeys.value = initExpandedKeys(tree.value)
+    createChart(document.getElementById('costPerMonthChart').getContext('2d'), costPerMonth.value);
   }
   finally {
     loading.value = false
