@@ -173,7 +173,9 @@ const collapseAll = () => {
 // stats
 
 const figureTypesCount = computed(() => {
-  var typesCount = {}
+  var typesCount = {
+    TOTAL: { count: 0, cost: 0 },
+  }
   tree.value.forEach((month) => {
     month.children.forEach((order) => {
       order.children.forEach((item) => {
@@ -194,8 +196,8 @@ const figureTypesCount = computed(() => {
         typesCount[type].count++
         typesCount[type].cost += item.data.price
 
-        typesCount["TOTAL"].count++
-        typesCount["TOTAL"].cost += item.data.price
+        typesCount['TOTAL'].count++
+        typesCount['TOTAL'].cost += item.data.price
       })
     })
   })
