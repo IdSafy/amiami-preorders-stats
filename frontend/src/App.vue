@@ -1,7 +1,7 @@
 <template>
   <div class="mainContainer">
     <div class="buttonContainer">
-      <Button label="Update" @click="triggerDataUpdate" />
+      <SplitButton :label="updateTypes[0].label" @click="updateTypes[0].command" :model="updateTypes.slice(1)" />
       <Button label="Expand all" @click="expandAll" />
       <Button label="Collapse all" @click="collapseAll" />
     </div>
@@ -100,6 +100,7 @@ import DataTable from 'primevue/datatable'
 import Divider from 'primevue/divider'
 import Panel from 'primevue/panel'
 import ProgressSpinner from 'primevue/progressspinner'
+import SplitButton from 'primevue/splitbutton';
 import Toast from 'primevue/toast'
 import TreeTable from 'primevue/treetable'
 import { useToast } from 'primevue/usetoast'
@@ -117,6 +118,21 @@ const loading = ref(false)
 
 const tree = ref([])
 const expandedKeys = ref()
+
+const updateTypes = [
+  { 
+    label: 'Update current orders',
+    command:  (event) => triggerDataUpdate(event, 'current_month')
+  },
+  { 
+    label: 'Update all orders',
+    command:  (event) => triggerDataUpdate(event, 'all')
+  },
+  { 
+    label: 'Update open orders',
+    command:  (event) => triggerDataUpdate(event, 'open')
+  },
+]
 
 // expansion control
 
@@ -237,8 +253,13 @@ const costPerMonth = computed(() => {
     }, {})
 })
 
+let chartInstance = null;
+
 const createChart = (ctx, data) => {
-  new Chart(ctx, {
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+  chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: Object.keys(data),
@@ -318,11 +339,14 @@ const getOrdersData = async () => {
   }
 }
 
-const postUpdateDataRequest = async () => {
+const postUpdateDataRequest = async (orderType) => {
   try {
     const response = await axios({
       method: 'post',
       url: '/api/orders/update/',
+      params: {
+        order_type: orderType,
+      },
     })
     return response.data
   } catch (e) {
@@ -336,10 +360,10 @@ const postUpdateDataRequest = async () => {
   }
 }
 
-const triggerDataUpdate = async () => {
+const triggerDataUpdate = async (event, orderType = 'current_month') => {
   loading.value = true
   try {
-    await postUpdateDataRequest()
+    await postUpdateDataRequest(orderType)
     tree.value = ordersDataToTree(await getOrdersData())
     expandedKeys.value = initExpandedKeys(tree.value)
     createChart(
@@ -420,12 +444,11 @@ onMounted(async () => {
 </script>
 
 <style>
-#app {
+body {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
-  color: #2c3e50;
 }
 
 .overlay {

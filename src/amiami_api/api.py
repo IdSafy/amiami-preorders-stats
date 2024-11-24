@@ -120,7 +120,7 @@ class ApiOrderInfoResponse(BaseApiResponse):
 
 
 class OrderType(str, Enum):
-    all = "str"
+    all = "all"
     open = "open"
     shipped = "shipped"
     current_month = "current_month"
