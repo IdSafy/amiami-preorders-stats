@@ -193,20 +193,19 @@ const figureTypesCount = computed(() => {
         }
         typesCount[type].count++
         typesCount[type].cost += item.data.price
+
+        typesCount["TOTAL"].count++
+        typesCount["TOTAL"].cost += item.data.price
       })
     })
   })
 
   typesCount = Object.keys(typesCount)
-    .sort()
+    .sort((a, b) => (a === 'TOTAL' ? 1 : b === 'TOTAL' ? -1 : a.localeCompare(b)))
     .reduce((acc, key) => {
       acc[key] = typesCount[key]
       return acc
     }, {})
-  typesCount['TOTAL'] = {
-    count: tree.value.reduce((acc, order) => acc + order.children.length, 0),
-    cost: tree.value.reduce((acc, order) => acc + order.data.price, 0),
-  }
 
   return typesCount
 })
