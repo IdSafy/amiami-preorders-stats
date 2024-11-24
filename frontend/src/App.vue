@@ -31,7 +31,7 @@
         </Column>
         <Column header="Cost ($)" class="dim price right">
           <template #body="{ node }">
-            {{ (node.data.price * yenToUsd).toLocaleString() + ' $' }}
+            {{ Math.round(node.data.price * yenToUsd).toLocaleString() + ' $' }}
           </template>
         </Column>
         <Column header="In stock" class="dim right" style="width: 6rem">
@@ -74,7 +74,7 @@
           </Column>
           <Column header="Cost ($)" class="right">
             <template #body="{ data }">
-              {{ (data[1].cost * yenToUsd).toLocaleString() }}$
+              {{ Math.round(data[1].cost * yenToUsd).toLocaleString() }}$
             </template>
           </Column>
         </DataTable>
@@ -296,8 +296,7 @@ const createChart = (ctx, data) => {
           ticks: {
             callback: function (value) {
               return (
-                value *
-                yenToUsd *
+                Math.round(value * yenToUsd) *
                 this.chart.scales.y.max
               ).toLocaleString()
             },
@@ -309,7 +308,7 @@ const createChart = (ctx, data) => {
           callbacks: {
             label: function (context) {
               const yenValue = context.raw
-              const usdValue = (yenValue * yenToUsd).toLocaleString()
+              const usdValue = Math.round(yenValue * yenToUsd).toLocaleString()
               return `${yenValue.toLocaleString()}¥ / ${usdValue}$`
             },
           },
