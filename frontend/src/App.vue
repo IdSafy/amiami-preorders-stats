@@ -377,11 +377,14 @@ const createChart = (ctx, data) => {
 
 // basic data retrival and transformation
 
-const getOrdersData = async () => {
+const getOrdersData = async (orderType = 'all') => {
   try {
     const response = await axios({
       method: 'get',
       url: '/api/orders/',
+      params: {
+        order_type: orderType,
+      },
     })
     return response.data
   } catch (e) {
@@ -420,7 +423,7 @@ const triggerDataUpdate = async (event, orderType = 'current_month') => {
   loading.value = true
   try {
     await postUpdateDataRequest(orderType)
-    tree.value = ordersDataToTree(await getOrdersData())
+    tree.value = ordersDataToTree(await getOrdersData(orderType))
     expandedKeys.value = initExpandedKeys(tree.value)
   } finally {
     loading.value = false
