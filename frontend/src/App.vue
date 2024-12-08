@@ -53,6 +53,16 @@
       <template #header>
         <h3>Analytics</h3>
       </template>
+      <div class="dataSelectorContainer">
+        <FloatLabel>
+          <DatePicker v-model="analiticsStartDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :max-date="dataEndDate"/>
+          <label for="over_label">Start data</label>
+        </FloatLabel>
+        <FloatLabel>
+          <DatePicker v-model="analiticsEndDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :max-date="dataEndDate"/>
+          <label for="over_label">Start data</label>
+        </FloatLabel>
+      </div>
       <Panel header="basic stats" toggleable class="basicAnalitics">
         <DataTable
           id="byTypeDataTable"
@@ -97,14 +107,16 @@
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
+import DatePicker from 'primevue/datepicker'
 import Divider from 'primevue/divider'
+import FloatLabel from 'primevue/floatlabel'
 import Panel from 'primevue/panel'
 import ProgressSpinner from 'primevue/progressspinner'
-import SplitButton from 'primevue/splitbutton';
+import SplitButton from 'primevue/splitbutton'
 import Toast from 'primevue/toast'
 import TreeTable from 'primevue/treetable'
 import { useToast } from 'primevue/usetoast'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 const toast = useToast()
 
 import Chart from 'chart.js/auto'
@@ -115,6 +127,8 @@ import axios from 'axios'
 const yenToUsd = 0.0065
 
 const loading = ref(false)
+
+const now = new Date()
 
 const tree = ref([])
 const expandedKeys = ref()
@@ -172,11 +186,45 @@ const collapseAll = () => {
 
 // stats
 
+const dataStartDate = computed(() => {
+  return tree.value.map((order) => new Date(order.data.date)).sort((a, b) => a - b)[0]
+})
+
+const dataEndDate = computed(() => {
+  const sorted = tree.value.map((order) => new Date(order.data.date)).sort((a, b) => a - b)
+  return sorted[sorted.length - 1]
+})
+
+const analiticsStartDate = ref(new Date())
+const analiticsEndDate = ref(new Date())
+
+watch(dataStartDate, async (newValue) => {
+  analiticsStartDate.value = newValue
+})
+
+watch(dataEndDate, async (newValue) => {
+  analiticsEndDate.value = newValue
+})
+
+const treePart = computed(() => {
+  return tree.value.filter((byMonth) => {
+    const monthDate = new Date(byMonth.data.date)
+    return monthDate >= analiticsStartDate.value && monthDate <= analiticsEndDate.value
+  })
+})
+
+watch(treePart, async () => {
+  createChart(
+    document.getElementById('costPerMonthChart').getContext('2d'),
+    costPerMonth.value
+  )
+})
+
 const figureTypesCount = computed(() => {
   var typesCount = {
     TOTAL: { count: 0, cost: 0 },
   }
-  tree.value.forEach((month) => {
+  treePart.value.forEach((month) => {
     month.children.forEach((order) => {
       order.children.forEach((item) => {
         var type
@@ -226,10 +274,10 @@ const costPerMonth = computed(() => {
   const costByMonth = {}
   const allMonths = new Set()
   const startDate = new Date(
-    Math.min(...tree.value.map((order) => new Date(order.data.date)))
+    Math.min(...treePart.value.map((order) => new Date(order.data.date)))
   )
   const endDate = new Date(
-    Math.max(...tree.value.map((order) => new Date(order.data.date)))
+    Math.max(...treePart.value.map((order) => new Date(order.data.date)))
   )
 
   for (let d = startDate; d <= endDate; d.setMonth(d.getMonth() + 1)) {
@@ -240,7 +288,7 @@ const costPerMonth = computed(() => {
   allMonths.forEach((month) => {
     costByMonth[month] = 0
   })
-  tree.value.forEach((month) => {
+  treePart.value.forEach((month) => {
     month.children.forEach((order) => {
       const monthKey = order.data.date.slice(0, 7)
       costByMonth[monthKey] += order.data.price
@@ -268,7 +316,15 @@ const createChart = (ctx, data) => {
         {
           label: 'cost per month',
           data: Object.values(data),
-          backgroundColor: '#34d399',
+          backgroundColor: Object.keys(data).map((date) => {
+            const monthDate = new Date(date);
+            const current_month = new Date(now.getFullYear(), now.getMonth(), 1);
+            if (monthDate >= current_month) {
+              return '#34d399'; // green pre-orders
+            } else  {
+              return 'gray'; // red shipped
+            }
+          }),
           borderWidth: 0,
           yAxisID: 'y',
         },
@@ -366,10 +422,6 @@ const triggerDataUpdate = async (event, orderType = 'current_month') => {
     await postUpdateDataRequest(orderType)
     tree.value = ordersDataToTree(await getOrdersData())
     expandedKeys.value = initExpandedKeys(tree.value)
-    createChart(
-      document.getElementById('costPerMonthChart').getContext('2d'),
-      costPerMonth.value
-    )
   } finally {
     loading.value = false
   }
@@ -436,10 +488,6 @@ const ordersDataToTree = (ordersData) => {
 onMounted(async () => {
   tree.value = ordersDataToTree(await getOrdersData())
   expandedKeys.value = initExpandedKeys(tree.value)
-  createChart(
-    document.getElementById('costPerMonthChart').getContext('2d'),
-    costPerMonth.value
-  )
 })
 </script>
 
@@ -533,5 +581,10 @@ span.in-stock {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   border-radius: 10px;
+}
+.dataSelectorContainer {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 1rem;
 }
 </style>
