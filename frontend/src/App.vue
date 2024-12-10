@@ -13,7 +13,7 @@
         class="mt-6"
         table-style="min-width: 10rem"
       >
-        <Column sort-field="date" sortable expander style="width: 13rem">
+        <Column expander style="width: 13rem">
           <template #body="{ node }">
             <a :href="node.data.page_link">{{ node.key }}</a>
           </template>
@@ -56,11 +56,11 @@
       <div class="dataSelectorContainer">
         <FloatLabel>
           <DatePicker v-model="analiticsStartDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :max-date="dataEndDate"/>
-          <label for="over_label">Start data</label>
+          <label for="over_label">Start date</label>
         </FloatLabel>
         <FloatLabel>
           <DatePicker v-model="analiticsEndDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :max-date="dataEndDate"/>
-          <label for="over_label">Start data</label>
+          <label for="over_label">End date</label>
         </FloatLabel>
       </div>
       <Panel header="basic stats" toggleable class="basicAnalitics">
@@ -129,9 +129,27 @@ const yenToUsd = 0.0065
 const loading = ref(false)
 
 const now = new Date()
+const current_month = new Date(now.getFullYear(), now.getMonth(), 1)
 
+var ordersData = []
+var data = {
+  by_month: {},
+  by_status: {},
+  orders: [],
+  startDate: null,
+  endDate: null,
+  oldestActiveOrderDate: null,
+}
 const tree = ref([])
 const expandedKeys = ref()
+const initExpandLevel = 2
+
+const dataStartDate = ref(null)
+const dataEndDate = ref(null)
+
+const analiticsStartDate = ref(null)
+const analiticsEndDate = ref(null)
+
 
 const updateTypes = [
   { 
@@ -150,14 +168,16 @@ const updateTypes = [
 
 // expansion control
 
-const initExpandedKeys = (nodes, levelValue = true) => {
+const initExpandedKeys = (nodes, levelsToExpans = 0) => {
   const keys = {}
+  const levelValue = levelsToExpans > 0
   nodes.forEach((node) => {
     keys[node.key] = levelValue
     if (node.children) {
-      Object.assign(keys, initExpandedKeys(node.children, false))
+      Object.assign(keys, initExpandedKeys(node.children, levelsToExpans - 1))
     }
   })
+  keys['finished'] = false
   return keys
 }
 
@@ -184,56 +204,44 @@ const collapseAll = () => {
   changeExpansion(tree.value, false)
 }
 
-// stats
+// analitics and stats
 
-const dataStartDate = computed(() => {
-  return tree.value.map((order) => new Date(order.data.date)).sort((a, b) => a - b)[0]
-})
-
-const dataEndDate = computed(() => {
-  const sorted = tree.value.map((order) => new Date(order.data.date)).sort((a, b) => a - b)
-  return sorted[sorted.length - 1]
-})
-
-const analiticsStartDate = ref(new Date())
-const analiticsEndDate = ref(new Date())
-
-watch(dataStartDate, async (newValue) => {
-  analiticsStartDate.value = newValue
-})
-
-watch(dataEndDate, async (newValue) => {
-  analiticsEndDate.value = newValue
-})
-
-const treePart = computed(() => {
-  return tree.value.filter((byMonth) => {
-    const monthDate = new Date(byMonth.data.date)
-    return monthDate >= analiticsStartDate.value && monthDate <= analiticsEndDate.value
+const monthsNodesUpToAlanitics = computed(() => {
+  if (tree.value.length === 0) {
+    return []
+  }
+  var allMonthsNodes = []
+  tree.value.forEach((StatusNode) => {
+    allMonthsNodes = allMonthsNodes.concat(StatusNode.children)
   })
-})
 
-watch(treePart, async () => {
-  createChart(
-    document.getElementById('costPerMonthChart').getContext('2d'),
-    costPerMonth.value
-  )
+  const res = allMonthsNodes.filter((monthNode) => {
+    const monthDate = new Date(monthNode.data.date)
+    if (monthDate >= analiticsStartDate.value && monthDate <= analiticsEndDate.value) {
+      return monthNode
+    }
+  })
+  if (!res) {
+    return []
+  }
+  console.log(res)
+  return res
 })
 
 const figureTypesCount = computed(() => {
   var typesCount = {
     TOTAL: { count: 0, cost: 0 },
   }
-  treePart.value.forEach((month) => {
-    month.children.forEach((order) => {
-      order.children.forEach((item) => {
+  monthsNodesUpToAlanitics.value.forEach((monthNode) => {
+    monthNode.children.forEach((orderNode) => {
+      orderNode.children.forEach((itemNode) => {
         var type
-        const scaleMatch = item.data.name.match(/1\/\d{1,2}/)
+        const scaleMatch = itemNode.data.name.match(/1\/\d{1,2}/)
         if (scaleMatch) {
           type = `${scaleMatch[0]} scale`
-        } else if (item.data.name.includes('Nendoroid')) {
+        } else if (itemNode.data.name.includes('Nendoroid')) {
           type = 'nendoroid'
-        } else if (item.data.scode.includes('GOODS')) {
+        } else if (itemNode.data.scode.includes('GOODS')) {
           type = 'goods'
         } else {
           type = 'other'
@@ -242,10 +250,10 @@ const figureTypesCount = computed(() => {
           typesCount[type] = { count: 0, cost: 0 }
         }
         typesCount[type].count++
-        typesCount[type].cost += item.data.price
+        typesCount[type].cost += itemNode.data.price
 
         typesCount['TOTAL'].count++
-        typesCount['TOTAL'].cost += item.data.price
+        typesCount['TOTAL'].cost += itemNode.data.price
       })
     })
   })
@@ -271,35 +279,38 @@ const totalRowStyle = (data) => {
 // chart
 
 const costPerMonth = computed(() => {
-  const costByMonth = {}
+  const costPerMonth = {}
   const allMonths = new Set()
-  const startDate = new Date(
-    Math.min(...treePart.value.map((order) => new Date(order.data.date)))
-  )
-  const endDate = new Date(
-    Math.max(...treePart.value.map((order) => new Date(order.data.date)))
-  )
+  const startDate = new Date(analiticsStartDate.value)
+  const endDate = new Date(analiticsEndDate.value)
 
   for (let d = startDate; d <= endDate; d.setMonth(d.getMonth() + 1)) {
-    const month = d.toISOString().slice(0, 7)
-    allMonths.add(month)
+    const monthStr = d.toISOString().slice(0, 7)
+    allMonths.add(monthStr)
   }
 
-  allMonths.forEach((month) => {
-    costByMonth[month] = 0
+  allMonths.forEach((monthStr) => {
+    costPerMonth[monthStr] = 0
   })
-  treePart.value.forEach((month) => {
-    month.children.forEach((order) => {
-      const monthKey = order.data.date.slice(0, 7)
-      costByMonth[monthKey] += order.data.price
+  monthsNodesUpToAlanitics.value.forEach((monthNode) => {
+    monthNode.children.forEach((order) => {
+      const monthStr = order.data.date.slice(0, 7)
+      costPerMonth[monthStr] += order.data.price
     })
   })
-  return Object.keys(costByMonth)
+  return Object.keys(costPerMonth)
     .sort()
     .reduce((acc, key) => {
-      acc[key] = costByMonth[key]
+      acc[key] = costPerMonth[key]
       return acc
     }, {})
+})
+
+watch(costPerMonth, async () => {
+  createChart(
+    document.getElementById('costPerMonthChart').getContext('2d'),
+    costPerMonth.value
+  )
 })
 
 let chartInstance = null;
@@ -318,7 +329,6 @@ const createChart = (ctx, data) => {
           data: Object.values(data),
           backgroundColor: Object.keys(data).map((date) => {
             const monthDate = new Date(date);
-            const current_month = new Date(now.getFullYear(), now.getMonth(), 1);
             if (monthDate >= current_month) {
               return '#34d399'; // green pre-orders
             } else  {
@@ -423,74 +433,146 @@ const triggerDataUpdate = async (event, orderType = 'current_month') => {
   loading.value = true
   try {
     await postUpdateDataRequest(orderType)
-    tree.value = ordersDataToTree(await getOrdersData('all'))
-    expandedKeys.value = initExpandedKeys(tree.value)
+    await prepareData()
   } finally {
     loading.value = false
   }
 }
 
-const ordersDataToTree = (ordersData) => {
-  const orders_as_tree = ordersData.map((order) => {
-    const order_node = {
-      key: order.id,
-      data: order,
-      children: order.items.map((item) => {
-        const item_note = {
-          key: item.id,
-          data: item,
-        }
-        item_note.amount = item.amount
-        return item_note
-      }),
-    }
-    order_node.data.amount = order_node.children.reduce(
-      (acc, item) => acc + item.data.amount,
-      0
-    )
-    order_node.data.in_stock_flag = order_node.children.every(
-      (item) => item.data.in_stock_flag
-    )
-    return order_node
-  })
-
-  const by_release_dates = {}
-
-  for (const order of orders_as_tree) {
-    const date = order.data.date
-    by_release_dates[date] = by_release_dates[date] || []
-    by_release_dates[date].push(order)
+const ordersDataToTree = (data) => {
+  const activeOrdersNode = {
+    key: 'active',
+    data: {},
+    children: [],
   }
 
-  const treeData = Object.keys(by_release_dates).map((date) => {
-    const month_node = {
-      key: date.substring(0, 7),
+  const finishedOrdersNode = {
+    key: 'finished',
+    data: {},
+    children: [],
+  }
+
+  
+  for (const [date_str, monthOrders] of Object.entries(data.by_month)) {
+    const date = new Date(date_str)
+    const monthNode = {
+      key: date_str,
       data: {
-        date: date,
+        date: date_str,
       },
-      children: by_release_dates[date],
+      children: monthOrders.map((order) => {
+        const orderNode = {
+          key: order.id,
+          data: order,
+          children: order.items.map((item) => {
+            const itemNode = {
+              key: item.id,
+              data: item,
+            }
+            return itemNode
+          }),
+        }
+        orderNode.data.amount = orderNode.children.reduce(
+          (acc, item) => acc + item.data.amount,
+          0
+        )
+        return orderNode
+      }),
     }
-    month_node.data.price = by_release_dates[date].reduce(
+
+    monthNode.data.price = monthNode.children.reduce(
       (acc, order) => acc + order.data.price,
       0
     )
-    month_node.data.amount = month_node.children.reduce(
+    monthNode.data.amount = monthNode.children.reduce(
       (acc, order) => acc + order.data.amount,
       0
     )
-    month_node.data.in_stock_flag = month_node.children.every(
+    monthNode.data.in_stock_flag = monthNode.children.every(
       (order) => order.data.in_stock_flag
     )
-    return month_node
+
+    if (date >= data.oldestActiveOrderDate) {
+      activeOrdersNode.children.push(monthNode)
+    } else {
+      finishedOrdersNode.children.push(monthNode)
+    }
+  }
+
+  [activeOrdersNode, finishedOrdersNode].forEach((node) => {
+    node.data.price = node.children.reduce(
+      (acc, month) => acc + month.data.price,
+      0
+    )
+    node.data.amount = node.children.reduce(
+      (acc, month) => acc + month.data.amount,
+      0
+    )
+    node.data.in_stock_flag = node.children.every(
+      (month) => month.data.in_stock_flag
+    )
+    node.data.date = node.children[0].data.date // just for sorting
+    node.children.sort((a, b) => new Date(a.data.date) - new Date(b.data.date))
   })
-  return treeData.sort((a, b) => (a.key < b.key ? -1 : 1))
+
+  return [finishedOrdersNode, activeOrdersNode]
+}
+
+const parseOrdersData = (ordersData) => {
+  const by_month = {}
+  const by_status = {}
+  var dataStartDate = null
+  var dataEndDate = null
+  var oldestActiveOrderDate = null
+
+  ordersData.map((order) => {
+    const date_str = order.date
+    const date = new Date(date_str)
+
+    by_month[date_str] = by_month[date_str] || []
+    by_month[date_str].push(order)
+
+    const status = current_month <= date ? 'active' : 'finished'
+    by_status[status] = by_status[status] || []
+    by_status[status].push(order)
+
+    if (dataStartDate === null || date < dataStartDate) {
+      dataStartDate = date
+    }
+    if (dataEndDate === null || date > dataEndDate) {
+      dataEndDate = date
+    }
+    if (status === 'active' && (oldestActiveOrderDate === null || date < oldestActiveOrderDate)) {
+      oldestActiveOrderDate = date
+    }
+    return order
+  })
+
+  return {
+    by_month,
+    by_status,
+    orders: ordersData,
+    startDate: dataStartDate,
+    endDate: dataEndDate,
+    oldestActiveOrderDate,
+  }
+}
+
+const prepareData = async () => {
+  ordersData = await getOrdersData()
+  data = parseOrdersData(ordersData)
+  tree.value = ordersDataToTree(data)
+  expandedKeys.value = initExpandedKeys(tree.value, initExpandLevel)
+  dataStartDate.value = data.startDate
+  dataEndDate.value = data.endDate
+  analiticsStartDate.value = data.oldestActiveOrderDate
+  analiticsEndDate.value = data.endDate
 }
 
 // hooks
 
 onMounted(async () => {
-  tree.value = ordersDataToTree(await getOrdersData())
-  expandedKeys.value = initExpandedKeys(tree.value)
+  await prepareData()
 })
 </script>
 
@@ -519,20 +601,20 @@ a {
   color: whitesmoke;
 }
 
-.p-treetable-tbody > tr[aria-level='2'] {
-  background-color: black;
-  color: white;
-}
 .p-treetable-tbody > tr[aria-level='3'] {
   background-color: black;
   color: white;
 }
+.p-treetable-tbody > tr[aria-level='4'] {
+  background-color: black;
+  color: white;
+}
 
-.p-treetable-tbody > tr[aria-level='1'] > td.dim {
+.p-treetable-tbody > tr[aria-level='2'] > td.dim {
   color: grey;
 }
 
-.p-treetable-tbody > tr[aria-level='3'] > td.dim {
+.p-treetable-tbody > tr[aria-level='4'] > td.dim {
   color: grey;
 }
 
