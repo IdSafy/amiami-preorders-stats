@@ -1,7 +1,7 @@
 <template>
   <div class="mainContainer">
     <div class="buttonContainer">
-      <SplitButton :label="updateTypes[0].label" @click="updateTypes[0].command" :model="updateTypes.slice(1)" />
+      <SplitButton label="Update"  @click="updateTypes[0].command" :model="updateTypes" />
       <Button label="Expand all" @click="expandAll" />
       <Button label="Collapse all" @click="collapseAll" />
     </div>
@@ -103,7 +103,7 @@
   <Toast position="center" severity="danger" />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -123,6 +123,7 @@ import Chart from 'chart.js/auto'
 Chart.defaults.color = '#fff'
 
 import axios from 'axios'
+import { MenuItem, MenuItemCommandEvent } from 'primevue/menuitem'
 
 const yenToUsd = 0.0065
 
@@ -131,8 +132,79 @@ const loading = ref(false)
 const now = new Date()
 const current_month = new Date(now.getFullYear(), now.getMonth(), 1)
 
-var ordersData = []
-var data = {
+interface Item {
+  id: string
+  name: string
+  price: number
+  amount: number
+  scode: string
+  in_stock_flag: boolean
+}
+
+interface Order {
+  id: string
+  date: string
+  price: number
+  amount: number
+  items: Item[]
+  in_stock_flag: boolean
+}
+
+interface StatusNode {
+  key: string
+  data: {
+    date: string
+    price: number
+    amount: number
+    in_stock_flag: boolean
+  }
+  children: MonthNode[]
+}
+
+interface MonthNode {
+  key: string
+  data: {
+    date: string
+    price: number
+    amount: number
+    in_stock_flag: boolean
+  }
+  children: OrderNode[]
+}
+
+interface OrderNode {
+  key: string
+  data: Order
+  children: ItemNode[]
+}
+
+interface ItemNode {
+  key: string
+  data: Item
+}
+
+interface TreeNode {
+  key: string
+  data: {
+    date: string
+    price: number
+    amount: number
+    in_stock_flag: boolean
+  }
+  children: TreeNode[]
+}
+
+interface Data {
+  by_month: Record<string, Order[]>
+  by_status: Record<string, Order[]>
+  orders: Order[]
+  startDate: Date | null
+  endDate: Date | null
+  oldestActiveOrderDate: Date | null
+}
+
+var ordersData: Order[] = []
+var data: Data = {
   by_month: {},
   by_status: {},
   orders: [],
@@ -140,36 +212,34 @@ var data = {
   endDate: null,
   oldestActiveOrderDate: null,
 }
-const tree = ref([])
-const expandedKeys = ref()
-const initExpandLevel = 2
+const tree = ref<TreeNode[]>([])
+const expandedKeys = ref<Record<string, boolean>>()
 
-const dataStartDate = ref(null)
-const dataEndDate = ref(null)
+const dataStartDate = ref<Date | null>(null)
+const dataEndDate = ref<Date | null>(null)
 
-const analiticsStartDate = ref(null)
-const analiticsEndDate = ref(null)
+const analiticsStartDate = ref<Date | null>(null)
+const analiticsEndDate = ref<Date | null>(null)
 
-
-const updateTypes = [
+const updateTypes: MenuItem[] = [
   { 
     label: 'Update current orders',
-    command:  (event) => triggerDataUpdate(event, 'current_month')
+    command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'current_month')
   },
   { 
     label: 'Update all orders',
-    command:  (event) => triggerDataUpdate(event, 'all')
+    command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'all')
   },
   { 
     label: 'Update open orders',
-    command:  (event) => triggerDataUpdate(event, 'open')
+    command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'open')
   },
 ]
 
 // expansion control
 
-const initExpandedKeys = (nodes, levelsToExpans = 0) => {
-  const keys = {}
+const initExpandedKeys = (nodes: TreeNode[], levelsToExpans = 0): Record<string, boolean> => {
+  const keys: Record<string, boolean> = {}
   const levelValue = levelsToExpans > 0
   nodes.forEach((node) => {
     keys[node.key] = levelValue
@@ -181,9 +251,9 @@ const initExpandedKeys = (nodes, levelsToExpans = 0) => {
   return keys
 }
 
-const changeExpansion = (nodes, value) => {
-  const changeExpansionRecursiveFuncion = (nodes) => {
-    const keys = {}
+const changeExpansion = (nodes: TreeNode[], value: boolean) => {
+  const changeExpansionRecursiveFuncion = (nodes: TreeNode[]): Record<string, boolean> => {
+    const keys: Record<string, boolean> = {}
     nodes.forEach((node) => {
       keys[node.key] = value
       if (node.children) {
@@ -210,14 +280,14 @@ const monthsNodesUpToAlanitics = computed(() => {
   if (tree.value.length === 0) {
     return []
   }
-  var allMonthsNodes = []
-  tree.value.forEach((StatusNode) => {
+  var allMonthsNodes: MonthNode[] = []
+  tree.value.forEach((StatusNode: StatusNode) => {
     allMonthsNodes = allMonthsNodes.concat(StatusNode.children)
   })
 
   const res = allMonthsNodes.filter((monthNode) => {
     const monthDate = new Date(monthNode.data.date)
-    if (monthDate >= analiticsStartDate.value && monthDate <= analiticsEndDate.value) {
+    if (monthDate >= analiticsStartDate.value! && monthDate <= analiticsEndDate.value!) {
       return monthNode
     }
   })
@@ -229,13 +299,13 @@ const monthsNodesUpToAlanitics = computed(() => {
 })
 
 const figureTypesCount = computed(() => {
-  var typesCount = {
+  var typesCount: Record<string, { count: number, cost: number }> = {
     TOTAL: { count: 0, cost: 0 },
   }
   monthsNodesUpToAlanitics.value.forEach((monthNode) => {
     monthNode.children.forEach((orderNode) => {
       orderNode.children.forEach((itemNode) => {
-        var type
+        var type: string
         const scaleMatch = itemNode.data.name.match(/1\/\d{1,2}/)
         if (scaleMatch) {
           type = `${scaleMatch[0]} scale`
@@ -263,12 +333,12 @@ const figureTypesCount = computed(() => {
     .reduce((acc, key) => {
       acc[key] = typesCount[key]
       return acc
-    }, {})
+    }, {} as Record<string, { count: number, cost: number }>)
 
   return typesCount
 })
 
-const totalRowStyle = (data) => {
+const totalRowStyle = (data: [string, { count: number, cost: number }]) => {
   if (data[0] === 'TOTAL') {
     return {
       'font-weight': 'bold',
@@ -279,10 +349,10 @@ const totalRowStyle = (data) => {
 // chart
 
 const costPerMonth = computed(() => {
-  const costPerMonth = {}
-  const allMonths = new Set()
-  const startDate = new Date(analiticsStartDate.value)
-  const endDate = new Date(analiticsEndDate.value)
+  const costPerMonth: Record<string, number> = {}
+  const allMonths = new Set<string>()
+  const startDate = new Date(analiticsStartDate.value!)
+  const endDate = new Date(analiticsEndDate.value!)
 
   for (let d = startDate; d <= endDate; d.setMonth(d.getMonth() + 1)) {
     const monthStr = d.toISOString().slice(0, 7)
@@ -303,19 +373,19 @@ const costPerMonth = computed(() => {
     .reduce((acc, key) => {
       acc[key] = costPerMonth[key]
       return acc
-    }, {})
+    }, {} as Record<string, number>)
 })
 
 watch(costPerMonth, async () => {
   createChart(
-    document.getElementById('costPerMonthChart').getContext('2d'),
+    (document.getElementById('costPerMonthChart') as HTMLCanvasElement).getContext('2d')!,
     costPerMonth.value
   )
 })
 
-let chartInstance = null;
+let chartInstance: Chart | null = null;
 
-const createChart = (ctx, data) => {
+const createChart = (ctx: CanvasRenderingContext2D, data: Record<string, number>) => {
   if (chartInstance) {
     chartInstance.destroy();
   }
@@ -363,7 +433,7 @@ const createChart = (ctx, data) => {
           ticks: {
             callback: function (value) {
               return (
-                Math.round(value * yenToUsd) *
+                Math.round(value as number * yenToUsd) *
                 this.chart.scales.y.max
               ).toLocaleString()
             },
@@ -374,7 +444,7 @@ const createChart = (ctx, data) => {
         tooltip: {
           callbacks: {
             label: function (context) {
-              const yenValue = context.raw
+              const yenValue = context.raw as number
               const usdValue = Math.round(yenValue * yenToUsd).toLocaleString()
               return `${yenValue.toLocaleString()}¥ / ${usdValue}$`
             },
@@ -387,7 +457,7 @@ const createChart = (ctx, data) => {
 
 // basic data retrival and transformation
 
-const getOrdersData = async (orderType = 'all') => {
+const getOrdersData = async (orderType = 'all'): Promise<Order[]> => {
   try {
     const response = await axios({
       method: 'get',
@@ -400,7 +470,7 @@ const getOrdersData = async (orderType = 'all') => {
   } catch (e) {
     console.error(e)
     toast.add({
-      severity: 'danger',
+      severity: 'error',
       summary: 'Error',
       detail: `Failed to fetch data: ${e}`,
     })
@@ -408,7 +478,7 @@ const getOrdersData = async (orderType = 'all') => {
   }
 }
 
-const postUpdateDataRequest = async (orderType) => {
+const postUpdateDataRequest = async (orderType: string): Promise<Order[]> => {
   try {
     const response = await axios({
       method: 'post',
@@ -421,7 +491,7 @@ const postUpdateDataRequest = async (orderType) => {
   } catch (e) {
     console.error(e)
     toast.add({
-      severity: 'danger',
+      severity: 'error',
       summary: 'Error',
       detail: `Failed to update data: ${e}`,
     })
@@ -429,7 +499,7 @@ const postUpdateDataRequest = async (orderType) => {
   }
 }
 
-const triggerDataUpdate = async (event, orderType = 'current_month') => {
+const triggerDataUpdate = async (event: MenuItemCommandEvent, orderType = 'current_month') => {
   loading.value = true
   try {
     await postUpdateDataRequest(orderType)
@@ -439,33 +509,45 @@ const triggerDataUpdate = async (event, orderType = 'current_month') => {
   }
 }
 
-const ordersDataToTree = (data) => {
-  const activeOrdersNode = {
+const ordersDataToTree = (data: Data): TreeNode[] => {
+  const activeOrdersNode: StatusNode = {
     key: 'active',
-    data: {},
+    data: {
+      date: '',
+      price: 0,
+      amount: 0,
+      in_stock_flag: true,
+    },
     children: [],
   }
 
-  const finishedOrdersNode = {
+  const finishedOrdersNode: StatusNode = {
     key: 'finished',
-    data: {},
+    data: {
+      date: '',
+      price: 0,
+      amount: 0,
+      in_stock_flag: true,
+    },
     children: [],
   }
 
-  
   for (const [date_str, monthOrders] of Object.entries(data.by_month)) {
     const date = new Date(date_str)
-    const monthNode = {
+    const monthNode: MonthNode = {
       key: date_str,
       data: {
         date: date_str,
+        price: 0,
+        amount: 0,
+        in_stock_flag: true,
       },
       children: monthOrders.map((order) => {
-        const orderNode = {
+        const orderNode: OrderNode = {
           key: order.id,
           data: order,
           children: order.items.map((item) => {
-            const itemNode = {
+            const itemNode: ItemNode = {
               key: item.id,
               data: item,
             }
@@ -475,6 +557,9 @@ const ordersDataToTree = (data) => {
         orderNode.data.amount = orderNode.children.reduce(
           (acc, item) => acc + item.data.amount,
           0
+        )
+        orderNode.data.in_stock_flag = orderNode.children.every(
+          (item) => item.data.in_stock_flag
         )
         return orderNode
       }),
@@ -492,7 +577,7 @@ const ordersDataToTree = (data) => {
       (order) => order.data.in_stock_flag
     )
 
-    if (date >= data.oldestActiveOrderDate) {
+    if (date >= data.oldestActiveOrderDate!) {
       activeOrdersNode.children.push(monthNode)
     } else {
       finishedOrdersNode.children.push(monthNode)
@@ -512,18 +597,18 @@ const ordersDataToTree = (data) => {
       (month) => month.data.in_stock_flag
     )
     node.data.date = node.children[0].data.date // just for sorting
-    node.children.sort((a, b) => new Date(a.data.date) - new Date(b.data.date))
+    node.children.sort((a, b) => new Date(a.data.date).getTime() - new Date(b.data.date).getTime())
   })
 
   return [finishedOrdersNode, activeOrdersNode]
 }
 
-const parseOrdersData = (ordersData) => {
-  const by_month = {}
-  const by_status = {}
-  var dataStartDate = null
-  var dataEndDate = null
-  var oldestActiveOrderDate = null
+const parseOrdersData = (ordersData: Order[]): Data => {
+  const by_month: Record<string, Order[]> = {}
+  const by_status: Record<string, Order[]> = {}
+  var dataStartDate: Date | null = null
+  var dataEndDate: Date | null = null
+  var oldestActiveOrderDate: Date | null = null
 
   ordersData.map((order) => {
     const date_str = order.date
@@ -562,7 +647,7 @@ const prepareData = async () => {
   ordersData = await getOrdersData()
   data = parseOrdersData(ordersData)
   tree.value = ordersDataToTree(data)
-  expandedKeys.value = initExpandedKeys(tree.value, initExpandLevel)
+  expandedKeys.value = initExpandedKeys(tree.value, 2)
   dataStartDate.value = data.startDate
   dataEndDate.value = data.endDate
   analiticsStartDate.value = data.oldestActiveOrderDate
