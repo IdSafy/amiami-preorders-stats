@@ -423,7 +423,7 @@ const triggerDataUpdate = async (event, orderType = 'current_month') => {
   loading.value = true
   try {
     await postUpdateDataRequest(orderType)
-    tree.value = ordersDataToTree(await getOrdersData(orderType))
+    tree.value = ordersDataToTree(await getOrdersData('all'))
     expandedKeys.value = initExpandedKeys(tree.value)
   } finally {
     loading.value = false
