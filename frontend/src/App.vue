@@ -1,7 +1,7 @@
 <template>
   <div class="mainContainer">
     <div class="buttonContainer">
-      <SplitButton label="Update"  @click="updateTypes[0].command" :model="updateTypes" />
+      <SplitButton :label="defaultUpdateType.label"  @click="defaultUpdateType.command" :model="updateTypes" />
       <Button label="Expand all" @click="expandAll" />
       <Button label="Collapse all" @click="collapseAll" />
     </div>
@@ -55,11 +55,11 @@
       </template>
       <div class="dataSelectorContainer">
         <FloatLabel>
-          <DatePicker v-model="analiticsStartDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :max-date="dataEndDate"/>
+          <DatePicker v-model="analiticsStartDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :maxDate="dataEndDate"/>
           <label for="over_label">Start date</label>
         </FloatLabel>
         <FloatLabel>
-          <DatePicker v-model="analiticsEndDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :max-date="dataEndDate"/>
+          <DatePicker v-model="analiticsEndDate" view="month" dateFormat="mm/yy" :minDate="dataStartDate" :maxDate="dataEndDate"/>
           <label for="over_label">End date</label>
         </FloatLabel>
       </div>
@@ -198,9 +198,9 @@ interface Data {
   by_month: Record<string, Order[]>
   by_status: Record<string, Order[]>
   orders: Order[]
-  startDate: Date | null
-  endDate: Date | null
-  oldestActiveOrderDate: Date | null
+  startDate: Date
+  endDate: Date
+  oldestActiveOrderDate: Date
 }
 
 var ordersData: Order[] = []
@@ -208,15 +208,15 @@ var data: Data = {
   by_month: {},
   by_status: {},
   orders: [],
-  startDate: null,
-  endDate: null,
-  oldestActiveOrderDate: null,
+  startDate: new Date(),
+  endDate: new Date(),
+  oldestActiveOrderDate: new Date(),
 }
-const tree = ref<TreeNode[]>([])
+const tree = ref<StatusNode[]>([])
 const expandedKeys = ref<Record<string, boolean>>()
 
-const dataStartDate = ref<Date | null>(null)
-const dataEndDate = ref<Date | null>(null)
+const dataStartDate = ref<Date>(new Date())
+const dataEndDate = ref<Date>(new Date())
 
 const analiticsStartDate = ref<Date | null>(null)
 const analiticsEndDate = ref<Date | null>(null)
@@ -235,6 +235,13 @@ const updateTypes: MenuItem[] = [
     command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'open')
   },
 ]
+
+interface UpdateType extends MenuItem {
+  label: string
+  command: () => void
+}
+
+const defaultUpdateType: UpdateType = updateTypes[0] as UpdateType
 
 // expansion control
 
@@ -281,8 +288,8 @@ const monthsNodesUpToAlanitics = computed(() => {
     return []
   }
   var allMonthsNodes: MonthNode[] = []
-  tree.value.forEach((StatusNode: StatusNode) => {
-    allMonthsNodes = allMonthsNodes.concat(StatusNode.children)
+  tree.value.forEach((statusNode: StatusNode) => {
+    allMonthsNodes = allMonthsNodes.concat(statusNode.children)
   })
 
   const res = allMonthsNodes.filter((monthNode) => {
@@ -432,10 +439,9 @@ const createChart = (ctx: CanvasRenderingContext2D, data: Record<string, number>
           },
           ticks: {
             callback: function (value) {
-              return (
-                Math.round(value as number * yenToUsd) *
-                this.chart.scales.y.max
-              ).toLocaleString()
+              const yenMax = this.chart.scales.y.max;
+              const usdValue = (value as number) * yenMax * yenToUsd;
+              return Math.round(usdValue).toLocaleString();
             },
           },
         },
@@ -606,9 +612,9 @@ const ordersDataToTree = (data: Data): TreeNode[] => {
 const parseOrdersData = (ordersData: Order[]): Data => {
   const by_month: Record<string, Order[]> = {}
   const by_status: Record<string, Order[]> = {}
-  var dataStartDate: Date | null = null
-  var dataEndDate: Date | null = null
-  var oldestActiveOrderDate: Date | null = null
+  var dataStartDate: Date = new Date()
+  var dataEndDate: Date = new Date()
+  var oldestActiveOrderDate: Date = new Date()
 
   ordersData.map((order) => {
     const date_str = order.date
