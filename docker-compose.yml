@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    networks:
+      - integration
     volumes:
       - store:/var/store/
     environment:
@@ -15,3 +17,6 @@ services:
 
 volumes:
   store:
+networks:
+  integration:
+    external: true
