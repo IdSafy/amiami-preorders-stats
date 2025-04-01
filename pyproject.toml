@@ -2,37 +2,43 @@
 name = "amiami-api"
 authors = [
     {name = "IdSaf", email = "idolarod1@gmail.com"},
+    {name = "IdSafy", email = "idsaf@outlook.com"},
 ]
-license = {file = "LICENSE"}
+license = {file = "LICENSE",text = "MIT"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 version = "0.1.0"
 description = "Default template for PDM package"
 dependencies = [
-    "requests>=2.31.0",
     "pydantic>=2.6.4",
-    "autoflake>=2.3.1",
-    "isort>=5.13.2",
-    "black>=24.3.0",
-    "click>=8.1.7",
     "python-dotenv>=1.0.1",
-    "print-color>=0.4.6",
     "mypy>=1.10.0",
-    "pre-commit>=3.7.0",
+    "fastapi>=0.115.5",
+    "loguru>=0.7.2",
+    "dependency-injector>=4.43.0",
+    "pydantic-settings>=2.6.1",
+    "aiohttp[speedups]>=3.11.2",
+    "uvicorn>=0.32.0",
 ]
-requires-python = ">=3.11"
+requires-python = "==3.13.*"
 readme = "README.md"
 
 [tool.pdm.scripts]
-api.cmd = "src/amiami_api/cli.py"
-api.env = {PYTHONPATH = "src/"}
+app.cmd = "uvicorn amiami_api.web:app"
+app.env = {PYTHONPATH = "src/"}
+
+npm.cmd = "npm"
+npm.working_dir = "frontend"
 
 [tool.pdm]
 distribution = false
 
 [tool.pdm.dev-dependencies]
 dev = [
-    "responses>=0.25.3",
+    "pre-commit>=3.7.0",
     "pytest>=8.3.3",
+    "httpx>=0.27.2",
+    "pytest-asyncio>=0.24.0",
+    "aioresponses>=0.7.7",
 ]
 
 [tool.flake8]
@@ -50,6 +56,7 @@ disable_error_code = [
 pretty = true
 check_untyped_defs = true
 allow_subclassing_any = true
+plugins = ["pydantic.mypy"]
 
 [tool.isort]
 profile = "black"
@@ -59,5 +66,5 @@ multi_line_output = 3
 pythonpath = [
   "src"
 ]
-# asyncio_default_fixture_loop_scope = "function"
-# asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"

@@ -32,6 +32,10 @@ repos:
     hooks:
     -   id: mypy
         additional_dependencies:
+        - dependency_injector[mypy]
+        - fastapi[mypy]
+        - loguru[mypy]
+        - pydantic_settings[mypy]
         - pydantic[mypy]
         - pytest[mypy]
         - requests[mypy]

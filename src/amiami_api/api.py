@@ -1,18 +1,35 @@
-import logging
 import urllib.parse
-from datetime import date, datetime
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
 from enum import Enum
-from typing import Any, Literal, TypeVar
+from functools import wraps
+from typing import Any, Callable, Literal, Self, TypeVar, cast
 
-import requests
-from pydantic import BaseModel, TypeAdapter, ValidationInfo, field_validator
+import aiohttp
+from loguru import logger
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    TypeAdapter,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+    model_validator,
+)
+
+from amiami_api import utils
 
 AMIAMI_STORE_BASE_URL = "https://www.amiami.com/"
 AMIAMI_ACCOUNT_BASE_URL = "https://secure.amiami.com/"
 AMIAMI_API_BASE_URL = "https://api-secure.amiami.com/api/v1.0/"
 
 
-def amiami_month_date_validate(value: str) -> date:
+def amiami_month_date_validate(value: str | datetime | date) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
     if value == "This Month":
         return date.today().replace(day=1)
     if value == "Before Last Month":
@@ -32,153 +49,66 @@ def amiami_month_date_validate(value: str) -> date:
 
 
 class OrderCommon(BaseModel):
-    d_no: str
-    d_status: str
-    scheduled_release: date
-    subtotal: int
+    id: str = Field(validation_alias=AliasChoices("d_no", "id"))
+    status: str = Field(validation_alias=AliasChoices("d_status", "status"))
+    scheduled_release: date = Field(validation_alias=AliasChoices("scheduled_release", "date"), serialization_alias="date")
+    price: int = Field(validation_alias=AliasChoices("subtotal", "price"), serialization_alias="price")
 
     @field_validator("scheduled_release", mode="before")
-    def parse_scheduled_release(cls, value: str, info: ValidationInfo) -> date:
+    def parse_scheduled_release(cls, value: str | datetime | date, info: ValidationInfo) -> date:
         return amiami_month_date_validate(value)
 
-    @field_validator("d_status")
+    @field_validator("status")
     def parse_d_status(cls, value: str, info: ValidationInfo) -> str:
         return value.rstrip()
 
-    @property
+    @computed_field
     def is_open(self) -> bool:
-        return self.d_status.lower() not in ["shipped", "cancelled"]
+        return self.status.lower() not in ["shipped", "cancelled"]
 
 
-class ApiOrder(OrderCommon):
-    scheduled_release: date
-    mypage_lock_flg: int
+class Order(OrderCommon):
+    pass
 
 
-class OrderWithItems(ApiOrder):
-    items: list["ApiItem"]
-
-
-class ApiItem(BaseModel):
-    ds_no: str
+class Item(BaseModel):
+    id: str = Field(validation_alias=AliasChoices("ds_no", "id"))
     scode: str
-    sname: str
+    name: str = Field(validation_alias=AliasChoices("sname", "name"))
     thumb_url: str  # "/images/product/thumb300/242/FIGURE-168653.jpg",
-    thumb_alt: str  # "FIGURE-168653.jpg",
-    thumb_title: (str)  # "Date A Live V Kurumi Tokisaki Wa-Bunny 1/7 Scale Figure[FURYU]",
-    thumb_agelimit: int
-    releasedate: date
+    release_date: date = Field(validation_alias=AliasChoices("releasedate", "release_date", "date"), serialization_alias="date")
     price: int
     amount: int
-    stock_flg: int
-    # max_cartin_count: None,
-    # stock: None,
-    # mixed_gcode: null,
-    # mixed_message: null
+    in_stock_flag: int = Field(validation_alias=AliasChoices("stock_flg", "in_stock_flag"))
 
-    @field_validator("releasedate", mode="before")
-    def parse_releasedate(cls, value: str):
+    @field_validator("release_date", mode="before")
+    def parse_releasedate(cls, value: str | datetime | date) -> date:
         return amiami_month_date_validate(value)
 
-    @property
+    @computed_field
     def page_link(self) -> str:
         return urllib.parse.urljoin(AMIAMI_STORE_BASE_URL, f"eng/detail?scode={self.scode}")
 
 
-class ApiOrderInfo(OrderCommon):
-    scheduled_release: date
-    items: list[ApiItem]
+class OrderInfo(OrderCommon):
+    items: list[Item]
 
-    @property
+    @computed_field
     def page_link(self) -> str:
-        return urllib.parse.urljoin(AMIAMI_ACCOUNT_BASE_URL, f"eng/bill/2?d_no={self.d_no}")
-
-    # "d_no": "226318854",
-    #         "order_type": 1,
-    #         "status": {
-    #             "id": 6,
-    #             "name": "New order\n"
-    #         },
-    #         "order_date": "2024-04-10T12:18:14.780634",
-    #         "scheduled_release": "Feb-2025",
-    #         "d_status": "New order\n",
-    #         "settlement_continuable": false,
-    #         "convinience_settlement_continuable": false,
-    #         "mypage_lock_flg": 0,
-    #         "payment_method": {
-    #             "id": 1,
-    #             "name": "Credit card"
-    #         },
-    #         "payment_method_before": {
-    #             "id": null,
-    #             "name": null
-    #         },
-    #         "shipping_method": {
-    #             "id": 17,
-    #             "name": "Air Small Packet (Registered)"
-    #         },
-    #         "shipping_address_type": 1,
-    #         "shipping_address": {
-    #             "lname": "*",
-    #             "fname": "*",
-    #             "country": {
-    #                 "id": "398",
-    #                 "name": "*",
-    #                 "gst_tax_rate": 0
-    #             },
-    #             "zip": null,
-    #             "state": null,
-    #             "city": "*",
-    #             "address": "*",
-    #             "taddress": null,
-    #             "tel": "*"
-    #         },
-    #         "send_time": {
-    #             "id": null,
-    #             "name": null
-    #         },
-    #         "send_day": {
-    #             "id": null,
-    #             "name": null
-    #         },
-    #         "send_date": null,
-    #         "sendno": null,
-    #         "shipdate": null,
-    #         "shipping_date": null,
-    #         "subtotal": 25850,
-    #         "carriage": null,
-    #         "discount_carriage": 0,
-    #         "adj": 0,
-    #         "yahoo_p_service": 0,
-    #         "rakuten_p_service": 0,
-    #         "gst_cost": 0,
-    #         "gst_enable": 0,
-    #         "point_earned": 259,
-    #         "point_input": 0,
-    #         "total": 25850,
-    #         "selectable_shipping_methods": [],
-    #         "items": [
-    #             {
-    #                 "ds_no": "226318854_0",
-    #                 "scode": "FIGURE-168653",
-    #                 "sname": "Date A Live V Kurumi Tokisaki Wa-Bunny 1/7 Scale Figure(Pre-order)",
-    #                 "thumb_url": "/images/product/thumb300/242/FIGURE-168653.jpg",
-    #                 "thumb_alt": "FIGURE-168653.jpg",
-    #                 "thumb_title": "Date A Live V Kurumi Tokisaki Wa-Bunny 1/7 Scale Figure[FURYU]",
-    #                 "thumb_agelimit": 0,
-    #                 "releasedate": "Feb-2025",
-    #                 "price": 25850,
-    #                 "amount": 1,
-    #                 "stock_flg": 0,
-    #                 "max_cartin_count": null,
-    #                 "stock": null,
-    #                 "mixed_gcode": null,
-    #                 "mixed_message": null
-    #             }
-    #         ]
-    #     }
-
-
+        return urllib.parse.urljoin(AMIAMI_ACCOUNT_BASE_URL, f"eng/bill/2?d_no={self.id}")
+    
+    @model_validator(mode='after')
+    def fix_incorrect_relative_date(self) -> Self:
+        lower_estimate = max(self.items, key=lambda item: item.release_date).release_date.replace(day=1)
+        wrong_data_value = amiami_month_date_validate("Before Last Month")
+        if self.scheduled_release != wrong_data_value:
+            return self
+        # seems fine
+        if self.scheduled_release == lower_estimate:
+            return self
+        self.scheduled_release = lower_estimate
+        return self
+        
 ItemType = TypeVar("ItemType")
 
 
@@ -190,38 +120,56 @@ class BaseApiResponse(BaseModel):
     RSuccess: bool
     RValue: None | Any
     RMessage: Literal["OK"]
-    search_result: SearchResult
 
 
 class ApiOrdersResponse(BaseApiResponse):
-    orders: list[ApiOrder]
+    orders: list[Order]
+    search_result: SearchResult
+
+
+class ApiOrderInfoResponse(BaseApiResponse):
+    order: OrderInfo
 
 
 class OrderType(str, Enum):
-    all = "str"
+    all = "all"
     open = "open"
     shipped = "shipped"
+    current_month = "current_month"
 
 
+MethodType = TypeVar("MethodType", bound=Callable)
+
+
+def ensure_login_decorator(func: MethodType) -> MethodType:
+    @wraps(func)
+    async def wrapper(self: "AmiAmiApi", *args, **kwargs):
+        if self._login_data is None:
+            await self._login()
+        try:
+            return await func(self, *args, **kwargs)
+        except Exception:
+            logger.warning("Request failed, try re-login")
+            await self._login()
+            return await func(self, *args, **kwargs)
+
+    return cast(MethodType, wrapper)
+
+
+@dataclass
 class AmiAmiApi:
+    username: str
+    password: str
     api_root_url: str = AMIAMI_API_BASE_URL
-    session: requests.Session
-    login_data: dict | None = None
+    _session: aiohttp.ClientSession = field(init=False)
+    _login_data: dict | None = field(default=None, init=False)
 
-    def __init__(self) -> None:
-        self.session = requests.Session()
-
-    def _get_headers(self) -> dict[str, str]:
-        headers = {
-            "X-User-Key": "amiami_dev",
-        }
-        if self.login_data is not None:
-            headers.update(
-                {
-                    "X-Authorization": f"bearer {self.login_data['login']['token']}",
-                }
-            )
-        return headers
+    def __post_init__(self):
+        self._session = aiohttp.ClientSession(
+            headers={
+                "X-User-Key": "amiami_dev",
+            },
+        )
 
     @staticmethod
     def _get_status_ids_from_order_type(order_type: OrderType) -> str:
@@ -229,36 +177,44 @@ class AmiAmiApi:
             OrderType.all: "1,2,3,4,5,6,7,10,999",
             OrderType.open: "1,2,5,6,7,10,999",
             OrderType.shipped: "3,4",
+            OrderType.current_month: "1,2,5,6,7,10,999",  # same as open
         }[order_type]
 
-    def login(self, login: str, password: str) -> bool:
-        login_data = {
+    async def _login(self) -> bool:
+        login_request_data = {
             "lang": "eng",
-            "email": login,
-            "password": password,
+            "email": self.username,
+            "password": self.password,
             "c_ransu": None,
         }
-        response = self.session.post(
+
+        response = await self._session.post(
             url=urllib.parse.urljoin(self.api_root_url, "login"),
-            headers=self._get_headers(),
-            data=login_data,
+            data=login_request_data,
         )
         try:
-            json_response = response.json()
+            json_response = await response.json()
             assert isinstance(json_response, dict)
             if json_response.get("RSuccess", False):
-                self.login_data = response.json()
-                logging.info("Login successfull")
+                self._login_data = await response.json()
+                logger.info("Login successfull")
+                assert self._login_data is not None
+                self._session.headers.update(
+                    {
+                        "X-Authorization": f"bearer {self._login_data['login']['token']}",
+                    }
+                )
                 return True
 
-            error_message = response.json()["RMessage"]
+            error_message = (await response.json())["RMessage"]
         except Exception:
-            error_message = response.status_code
-        logging.info(f"Login failed: {error_message}")
+            error_message = response.status
+        logger.error(f"Login failed: {error_message}")
         return False
 
-    def get_orders(self, order_type: OrderType = OrderType.all) -> list[ApiOrder]:
-        all_orders: list[ApiOrder] = []
+    @ensure_login_decorator
+    async def get_orders(self, order_type: OrderType = OrderType.all) -> list[Order]:
+        orders: list[Order] = []
         params: dict[str, str | int] = {
             "status_ids": self._get_status_ids_from_order_type(order_type),
             "search_key": "id",
@@ -267,27 +223,30 @@ class AmiAmiApi:
             "pagecnt": 1,
         }
         while True:
-            response = requests.get(
+            response = await self._session.get(
                 url=urllib.parse.urljoin(self.api_root_url, "orders"),
-                headers=self._get_headers(),
                 params=params,
             )
-            response_object = TypeAdapter(ApiOrdersResponse).validate_python(response.json())
-            all_orders += response_object.orders
-            if len(all_orders) == response_object.search_result.total_results:
+            api_orders_response = TypeAdapter(ApiOrdersResponse).validate_python(await response.json())
+            orders += api_orders_response.orders
+            if len(orders) == api_orders_response.search_result.total_results:
                 break
             assert isinstance(params["pagecnt"], int)
             params["pagecnt"] += 1
-        return all_orders
+        if order_type == OrderType.current_month:
+            first_day_of_next_month = utils.first_day_of_next_month()
+            orders = [order for order in orders if order.scheduled_release < first_day_of_next_month]
+        return orders
 
-    def get_order_info(self, order_number: str) -> ApiOrderInfo:
-        response = requests.get(
+    @ensure_login_decorator
+    async def get_order_info(self, order_number: str) -> OrderInfo:
+        response = await self._session.get(
             url=urllib.parse.urljoin(self.api_root_url, "orders/detail"),
-            headers=self._get_headers(),
             params={
                 "d_no": order_number,
                 "lang": "eng",
             },
         )
-        order_info = TypeAdapter(ApiOrderInfo).validate_python(response.json()["order"])
-        return order_info
+        logger.debug(await response.json())
+        api_order_info = TypeAdapter(ApiOrderInfoResponse).validate_python(await response.json())
+        return api_order_info.order

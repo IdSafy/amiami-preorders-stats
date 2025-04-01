@@ -1,0 +1,17 @@
+services:
+  amiami-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - store:/var/store/
+    environment:
+      - AMIAMI_STORE_FILE_PATH=/var/store/orders.json
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  store:
