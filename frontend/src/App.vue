@@ -541,7 +541,7 @@ const ordersDataToTree = (data: Data): TreeNode[] => {
   for (const [date_str, monthOrders] of Object.entries(data.by_month)) {
     const date = new Date(date_str)
     const monthNode: MonthNode = {
-      key: date_str,
+      key: `${date.toLocaleString('en', { month: 'long' })} ${date.getFullYear()} `,
       data: {
         date: date_str,
         price: 0,
