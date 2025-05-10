@@ -24,7 +24,7 @@ class AmiAmiOrdersStore(ABC):
 
     def delete_order(self, order_id: str) -> None:
         raise NotImplementedError
-    
+
     def clean_up_not_existing_orders(self, existing_orders: list[str]) -> None:
         orders = self.get_orders()
         for order in orders:

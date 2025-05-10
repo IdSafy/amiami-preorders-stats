@@ -70,7 +70,7 @@ async def update_orders(
         store.update_order(order_info.id, order_info)
 
     store.clean_up_not_existing_orders([order.id for order in all_orders])
-    
+
     return store.get_orders(order_type)
 
 

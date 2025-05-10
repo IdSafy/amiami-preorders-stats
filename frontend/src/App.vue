@@ -222,15 +222,15 @@ const analiticsStartDate = ref<Date | null>(null)
 const analiticsEndDate = ref<Date | null>(null)
 
 const updateTypes: MenuItem[] = [
-  { 
+  {
     label: 'Update current orders',
     command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'current_month')
   },
-  { 
+  {
     label: 'Update all orders',
     command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'all')
   },
-  { 
+  {
     label: 'Update open orders',
     command:  (event: MenuItemCommandEvent) => triggerDataUpdate(event, 'open')
   },

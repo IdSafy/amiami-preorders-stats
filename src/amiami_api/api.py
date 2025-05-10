@@ -1,6 +1,6 @@
 import urllib.parse
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Literal, Self, TypeVar, cast
@@ -96,8 +96,8 @@ class OrderInfo(OrderCommon):
     @computed_field
     def page_link(self) -> str:
         return urllib.parse.urljoin(AMIAMI_ACCOUNT_BASE_URL, f"eng/bill/2?d_no={self.id}")
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def fix_incorrect_relative_date(self) -> Self:
         lower_estimate = max(self.items, key=lambda item: item.release_date).release_date.replace(day=1)
         wrong_data_value = amiami_month_date_validate("Before Last Month")
@@ -108,7 +108,8 @@ class OrderInfo(OrderCommon):
             return self
         self.scheduled_release = lower_estimate
         return self
-        
+
+
 ItemType = TypeVar("ItemType")
 
 
