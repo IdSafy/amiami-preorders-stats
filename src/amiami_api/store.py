@@ -45,12 +45,12 @@ class AmiAmiOrdersMemoryStore(AmiAmiOrdersStore):
             case OrderType.all:
                 return all_orders
             case OrderType.open:
-                return [order for order in all_orders if order.is_open()]
+                return [order for order in all_orders if order.is_open]  # type: ignore[truthy-function]
             case OrderType.shipped:
-                return [order for order in all_orders if not order.is_open()]
+                return [order for order in all_orders if not order.is_open]  # type: ignore[truthy-function]
             case OrderType.current_month:
                 # less or equal because sometime there are delays
-                return [order for order in all_orders if order.is_open() and order.scheduled_release <= date.today()]
+                return [order for order in all_orders if order.is_open and order.scheduled_release <= date.today()]  # type: ignore[truthy-function]
 
     def add_order(self, order: OrderInfo) -> None:
         self._orders[order.id] = order
