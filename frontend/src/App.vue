@@ -15,7 +15,7 @@
       >
         <Column expander style="width: 13rem">
           <template #body="{ node }">
-            <a :href="node.data.page_link">{{ node.key }}</a>
+            <a target="_blank" rel="noopener noreferrer" :href="node.data.page_link">{{ node.key }}</a>
           </template>
         </Column>
         <Column
