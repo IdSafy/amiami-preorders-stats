@@ -5,7 +5,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, ExtBot, JobQueue
 
 from amiami_api.api import OrderInfo, OrderType
-from amiami_api.di import DIContainer
 from amiami_api.service import AmiamiService
 
 
@@ -18,7 +17,7 @@ def format_orders(orders: Iterable[OrderInfo]) -> str:
 
 
 @inject
-async def update_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide[DIContainer.service]) -> None:
+async def update_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide["service"]) -> None:
     assert update.message is not None
     await update.message.reply_text("Updating open orders...")
     await service.update_orders(order_type=OrderType.open)
@@ -26,7 +25,7 @@ async def update_open(update: Update, context: ContextTypes.DEFAULT_TYPE, servic
 
 
 @inject
-async def full_update(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide[DIContainer.service]) -> None:
+async def full_update(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide["service"]) -> None:
     assert update.message is not None
     await update.message.reply_text("Full update (all orders)...")
     orders = await service.update_orders(order_type=OrderType.all)
@@ -34,7 +33,7 @@ async def full_update(update: Update, context: ContextTypes.DEFAULT_TYPE, servic
 
 
 @inject
-async def show_current_orders(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide[DIContainer.service]):
+async def show_current_orders(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide["service"]):
     assert update.message is not None
     orders = await service.get_current_orders()
     if not orders:
@@ -44,7 +43,7 @@ async def show_current_orders(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 @inject
-async def show_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide[DIContainer.service]):
+async def show_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide["service"]):
     assert update.message is not None
     orders = await service.get_orders(order_type=OrderType.open)
     if not orders:
@@ -54,7 +53,7 @@ async def show_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service:
 
 
 @inject
-async def update_and_show_current(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide[DIContainer.service]):
+async def update_and_show_current(update: Update, context: ContextTypes.DEFAULT_TYPE, service: AmiamiService = Provide["service"]):
     assert update.message is not None
     await update.message.reply_text("Updating and showing current month orders...")
     await service.update_orders(order_type=OrderType.current_month)
@@ -66,7 +65,7 @@ async def update_and_show_current(update: Update, context: ContextTypes.DEFAULT_
 async def start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    white_list: list[str] = Provide[DIContainer.telegram_bot_white_list],
+    white_list: list[str] = Provide["config.telegram_bot_white_list"],
 ):
     assert update.message is not None
     user = update.effective_user

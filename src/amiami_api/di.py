@@ -25,10 +25,6 @@ class DIContainer(containers.DeclarativeContainer):
         token=config.telegram_bot_token,
     )
 
-    telegram_bot_white_list = providers.Singleton[list[str]](
-        config.telegram_bot_white_list,
-    )
-
     service = providers.Singleton(
         AmiamiService,
         api=api,
