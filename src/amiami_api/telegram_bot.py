@@ -10,11 +10,16 @@ from amiami_api.service import AmiamiService
 
 
 def format_order(order: OrderInfo) -> str:
+    order_status_emoji = "" if order.is_open else "✅"  # type: ignore[truthy-function]
     title = (
         f"Order [{order.id}]({order.page_link}): "
-        f"{order.status}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥, {len(order.items)} items:"
+        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥, {len(order.items)} items:"
     )
-    items = "\n".join([f"- [{item.id}]({item.page_link}): {item.name} {item.price}¥" for item in order.items])
+    items = ""
+    for item in order.items:
+        item_status_emoji = "✅" if item.amount > 0 else ""
+        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥, {item_status_emoji}".rstrip()
+
     return f"{title}\n{items}"
 
 
