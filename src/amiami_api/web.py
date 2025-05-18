@@ -63,9 +63,12 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot = container.telegram_bot()
-        asyncio.get_running_loop().call_soon(bot.run_polling)
-        yield
-        await bot.stop()
+        async with bot:
+            await bot.start()
+            assert bot.updater is not None
+            await bot.updater.start_polling()
+            yield
+            await bot.stop()
 
     app = FastAPI(lifespan=lifespan)
     app.include_router(api_router)
