@@ -70,7 +70,10 @@ async def start(
     assert update.message is not None
     user = update.effective_user
     assert user is not None
-    if user.name not in white_list or str(user.id) not in white_list:
+    allowed = False
+    if str(user.id) in white_list or user.username in white_list:
+        allowed = True
+    if not allowed:
         await update.message.reply_text(
             text="You are not allowed to use this bot. Please contact the administrator.",
         )
