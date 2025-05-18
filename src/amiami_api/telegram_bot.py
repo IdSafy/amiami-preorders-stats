@@ -73,6 +73,20 @@ async def update_and_show_current(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    assert update.message is not None
+    text = (
+        "Available commands:\n"
+        "- /start - Start the bot\n"
+        "- /update - Update open orders\n"
+        "- /update_full - Full update (all orders)\n"
+        "- /show_current - Show current month orders\n"
+        "- /show_open - Show open orders\n"
+        "- /update_and_show_current - Update and show current month orders\n"
+    )
+    await update.message.reply_markdown_v2(telegramify_markdown.markdownify(text))
+
+
 @inject
 async def start(
     update: Update,
@@ -105,4 +119,5 @@ def create_bot(
     application.add_handler(CommandHandler("show_current", show_current_orders))
     application.add_handler(CommandHandler("show_open", show_open))
     application.add_handler(CommandHandler("update_and_show_current", update_and_show_current))
+    application.add_handler(CommandHandler("help", help))
     return application
