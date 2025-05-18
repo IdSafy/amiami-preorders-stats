@@ -22,12 +22,15 @@ class AmiamiService:
 
     async def get_current_orders(self, include_finished: bool = True) -> list[OrderInfo]:
         orders = self.store.get_orders(OrderType.all)
-        current_month = datetime.now().month
+        now = datetime.now()
+        current_month = now.month
+        previous_month = current_month - 1 if current_month > 1 else 12
+        current_year = now.year
 
         def filter_func(order: OrderInfo) -> bool:
             if order.status == OrderType.shipped and not include_finished:
                 return False
-            return order.scheduled_release.month in [current_month, current_month - 1]
+            return order.scheduled_release.month in [current_month, previous_month] and order.scheduled_release.year == current_year
 
         return list(filter(filter_func, orders))
 

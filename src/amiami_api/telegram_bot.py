@@ -1,5 +1,6 @@
 from typing import Any, Iterable
 
+import telegramify_markdown
 from dependency_injector.wiring import Provide, inject
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, ExtBot, JobQueue
@@ -9,11 +10,16 @@ from amiami_api.service import AmiamiService
 
 
 def format_order(order: OrderInfo) -> str:
-    return f"Order {order.id}: {order.status}, {order.scheduled_release}, {order.price}¥, items: {len(order.items)}"
+    title = (
+        f"Order [{order.id}]({order.page_link}): "
+        f"{order.status}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥, {len(order.items)} items:"
+    )
+    items = "\n".join([f"- [{item.id}]({item.page_link}): {item.name} {item.price}¥" for item in order.items])
+    return f"{title}\n{items}"
 
 
 def format_orders(orders: Iterable[OrderInfo]) -> str:
-    return "\n".join([format_order(o) for o in orders])
+    return "\n---\n".join([format_order(o) for o in orders])
 
 
 @inject
@@ -39,7 +45,8 @@ async def show_current_orders(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not orders:
         await update.message.reply_text("No current orders.")
         return
-    await update.message.reply_text("Current orders:\n" + format_orders(orders))
+    message = "# Current orders\n\n" + format_orders(orders)
+    await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 
 @inject
@@ -49,7 +56,8 @@ async def show_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service:
     if not orders:
         await update.message.reply_text("No open orders.")
         return
-    await update.message.reply_text("All open orders:\n" + format_orders(orders))
+    message = "# Open orders\n\n" + format_orders(orders)
+    await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 
 @inject
@@ -58,7 +66,11 @@ async def update_and_show_current(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text("Updating and showing current month orders...")
     await service.update_orders(order_type=OrderType.current_month)
     orders = await service.get_current_orders()
-    await update.message.reply_text("Current month orders:\n" + format_orders(orders))
+    if not orders:
+        await update.message.reply_text("No current orders.")
+        return
+    message = "# Current orders\n\n" + format_orders(orders)
+    await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 
 @inject
