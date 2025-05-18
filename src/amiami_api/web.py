@@ -1,14 +1,15 @@
 import asyncio
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from loguru import logger
 
-from amiami_api.api import AmiAmiApi, Item, Order, OrderInfo, OrderType
+from amiami_api.api import Item, OrderInfo, OrderType
 from amiami_api.config import Config
 from amiami_api.di import DIContainer
-from amiami_api.store import AmiAmiOrdersStore
+from amiami_api.service import AmiamiService
 
 api_router = APIRouter(prefix="/api", tags=["api_root"])
 
@@ -17,18 +18,18 @@ api_router = APIRouter(prefix="/api", tags=["api_root"])
 @inject
 async def get_orders(
     order_type: OrderType = OrderType.open,
-    store: AmiAmiOrdersStore = Depends(Provide[DIContainer.store]),
+    service: AmiamiService = Depends(Provide[DIContainer.service]),
 ) -> list[OrderInfo]:
-    return store.get_orders(order_type)
+    return await service.get_orders(order_type)
 
 
 @api_router.get("/orders/{order_id}/")
 @inject
 async def get_order(
     order_id: str,
-    store: AmiAmiOrdersStore = Depends(Provide[DIContainer.store]),
+    service: AmiamiService = Depends(Provide[DIContainer.service]),
 ) -> OrderInfo:
-    order = store.get_order(order_id)
+    order = await service.get_order(order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
@@ -37,10 +38,10 @@ async def get_order(
 @api_router.get("/items/")
 @inject
 async def get_items(
-    store: AmiAmiOrdersStore = Depends(Provide[DIContainer.store]),
+    service: AmiamiService = Depends(Provide[DIContainer.service]),
 ) -> list[Item]:
-    items = []
-    orders = store.get_orders()
+    items: list[Item] = []
+    orders = await service.get_orders(OrderType.all)
     for order in orders:
         items.extend(order.items)
     return items
@@ -50,39 +51,26 @@ async def get_items(
 @inject
 async def update_orders(
     order_type: OrderType = OrderType.open,
-    store: AmiAmiOrdersStore = Depends(Provide[DIContainer.store]),
-    api: AmiAmiApi = Depends(Provide[DIContainer.api]),
+    service: AmiamiService = Depends(Provide[DIContainer.service]),
 ) -> list[OrderInfo]:
-    orders, all_orders = await asyncio.gather(api.get_orders(order_type), api.get_orders(OrderType.all))
-    semaphore = asyncio.Semaphore(3)
-
-    async def fetch_order_info(order: Order) -> OrderInfo:
-        async with semaphore:
-            logger.info(f"Fetching order info for order {order.id}")
-            return await api.get_order_info(order.id)
-
-    fetch_order_info_tasks = [fetch_order_info(order) for order in orders]
-    orders_info = await asyncio.gather(*fetch_order_info_tasks, return_exceptions=True)
-    for order_info in orders_info:
-        if isinstance(order_info, BaseException):
-            logger.opt(exception=order_info).error("Error while fetching order info")
-            continue
-        store.update_order(order_info.id, order_info)
-
-    store.clean_up_not_existing_orders([order.id for order in all_orders])
-
-    return store.get_orders(order_type)
+    return await service.update_orders(order_type)
 
 
 def create_app() -> FastAPI:
     container = DIContainer()
     container.config.from_dict(Config().model_dump())
 
-    app = FastAPI()
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        bot = container.telegram_bot()
+        asyncio.get_running_loop().call_soon(bot.run_polling)
+        yield
+        await bot.stop()
+
+    app = FastAPI(lifespan=lifespan)
     app.include_router(api_router)
 
     statics = StaticFiles(directory="frontend/dist/", html=True)
-
     app.mount("/", statics, name="static")
     return app
 

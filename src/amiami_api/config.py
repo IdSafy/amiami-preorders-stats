@@ -10,3 +10,4 @@ class Config(BaseSettings):
     username: str = Field(alias="AMIAMI_LOGIN")
     password: str
     store_file_path: Path = Field(default=Path("./orders.json"))
+    telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")

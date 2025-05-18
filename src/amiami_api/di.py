@@ -1,11 +1,13 @@
 from dependency_injector import containers, providers
 
 from amiami_api.api import AmiAmiApi
+from amiami_api.service import AmiamiService
 from amiami_api.store import AmiAmiOrdersFileStore, AmiAmiOrdersStore
+from amiami_api.telegram_bot import create_bot
 
 
 class DIContainer(containers.DeclarativeContainer):
-    wiring_config = containers.WiringConfiguration(modules=[".web"])
+    wiring_config = containers.WiringConfiguration(modules=[".web", ".telegram_bot"])
 
     config = providers.Configuration()
     api = providers.Singleton(
@@ -16,4 +18,19 @@ class DIContainer(containers.DeclarativeContainer):
     store = providers.Singleton[AmiAmiOrdersStore](
         AmiAmiOrdersFileStore,
         file_path=config.store_file_path,
+    )
+
+    telegram_bot = providers.Singleton(
+        create_bot,
+        token=config.telegram_bot_token,
+    )
+
+    telegram_bot_white_list = providers.Singleton[list[str]](
+        config.telegram_bot_white_list,
+    )
+
+    service = providers.Singleton(
+        AmiamiService,
+        api=api,
+        store=store,
     )
