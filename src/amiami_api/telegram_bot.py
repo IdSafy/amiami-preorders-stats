@@ -17,14 +17,14 @@ def format_order(order: OrderInfo) -> str:
     )
     items = ""
     for item in order.items:
-        item_status_emoji = "✅" if item.in_stock_flag > 0 else ""
+        item_status_emoji = "✅" if item.in_stock_flag > 0 else "❌"
         items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥"
 
-    return f"{title}\n{items}"
+    return f"{title}{items}"
 
 
 def format_orders(orders: Iterable[OrderInfo]) -> str:
-    return "\n---\n".join([format_order(o) for o in orders])
+    return "\n---\n\n".join([format_order(o) for o in orders])
 
 
 @inject
