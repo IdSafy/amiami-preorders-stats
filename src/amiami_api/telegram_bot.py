@@ -24,7 +24,8 @@ def format_order(order: OrderInfo) -> str:
 
 
 def format_orders(orders: Iterable[OrderInfo]) -> str:
-    return "\n---\n\n".join([format_order(o) for o in orders])
+    sorted_orders = sorted(orders, key=lambda o: o.scheduled_release)
+    return "\n---\n\n".join([format_order(o) for o in sorted_orders])
 
 
 @inject
