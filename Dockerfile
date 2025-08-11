@@ -23,15 +23,12 @@ RUN npm run build
 #----------------
 FROM python:${PYTHON_BASE} AS backend_build
 
-RUN apt-get update && apt-get install -y build-essential clang libssl-dev libffi-dev python3-dev
-
 # install PDM
 RUN pip install -U pdm
 # disable update check
 ENV PDM_CHECK_UPDATE=false
 # copy files
 COPY pyproject.toml pdm.lock README.md /project/
-# COPY src/ /project/src
 
 # install dependencies and project into the local packages directory
 WORKDIR /project
