@@ -46,11 +46,11 @@
             </span>
           </template>
         </Column>
-        <Column header="Name" style="width: auto">
+        <Column header="Name" style="width: 25rem">
           <template #body="{ node }">
             <Panel v-if="node.data.name" :header="node.data.name" toggleable collapsed>
               <DeferredContent>
-                <img :src=prepend_image_url(node.data.thumb_url) alt="Nature" class="rounded-xl w-full md:w-96 block sm:mx-auto" />
+                <img :src=prepend_image_url(node.data.thumb_url) alt="Nature" class="thumb-image" />
             </DeferredContent>
             </Panel>
           </template>
@@ -750,6 +750,12 @@ span.in-stock {
   width: 40%;
   color: white;
 }
+
+@media (max-width: 600px) {
+  .chart-container {
+    width: 100%;
+  }
+}
 .buttonContainer {
   display: flex;
   justify-content: center;
@@ -760,6 +766,10 @@ span.in-stock {
   display: flex;
   flex-flow: column;
   gap: 1rem;
+}
+
+.thumb-image {
+  border-radius: 10px;
 }
 
 #byTypeDataTable {

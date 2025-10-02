@@ -9,7 +9,7 @@ module.exports = defineConfig({
     });
     config.devServer.proxy(
      {'/api': {
-        target: 'https://amiami-api.idsaf.site',
+        target: 'https://localhost/',
         ws: true,
         changeOrigin: true
       }
