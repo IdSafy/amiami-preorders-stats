@@ -46,7 +46,15 @@
             </span>
           </template>
         </Column>
-        <Column header="Name" field="name" style="width: auto"> </Column>
+        <Column header="Name" style="width: auto">
+          <template #body="{ node }">
+            <Panel v-if="node.data.name" :header="node.data.name" toggleable collapsed>
+              <DeferredContent>
+                <img :src=prepend_image_url(node.data.thumb_url) alt="Nature" class="rounded-xl w-full md:w-96 block sm:mx-auto" />
+            </DeferredContent>
+            </Panel>
+          </template>
+        </Column>
       </TreeTable>
     </Panel>
     <Panel class="analytics">
@@ -115,6 +123,7 @@ import ProgressSpinner from 'primevue/progressspinner'
 import SplitButton from 'primevue/splitbutton'
 import Toast from 'primevue/toast'
 import TreeTable from 'primevue/treetable'
+import DeferredContent from 'primevue/deferredcontent';
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, ref, watch } from 'vue'
 const toast = useToast()
@@ -126,6 +135,8 @@ import axios from 'axios'
 import { MenuItem, MenuItemCommandEvent } from 'primevue/menuitem'
 
 const yenToUsd = 0.0065
+
+const amiami_image_base_url="https://img.amiami.com/"
 
 const loading = ref(false)
 
@@ -658,6 +669,10 @@ const prepareData = async () => {
   dataEndDate.value = data.endDate
   analiticsStartDate.value = data.oldestActiveOrderDate
   analiticsEndDate.value = data.endDate
+}
+
+const prepend_image_url = (path: string): string => {
+  return amiami_image_base_url + path
 }
 
 // hooks

@@ -7,5 +7,13 @@ module.exports = defineConfig({
       args[0].title = 'AmiAmi orders tracker';
       return args;
     });
+    config.devServer.proxy(
+     {'/api': {
+        target: 'https://amiami-api.idsaf.site',
+        ws: true,
+        changeOrigin: true
+      }
+    }
+    )
   },
 })
