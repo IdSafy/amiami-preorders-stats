@@ -6,26 +6,30 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, ExtBot, JobQueue
 
 from amiami_api.api import OrderInfo, OrderType
+from amiami_api.fx_rates import FxRatesService
 from amiami_api.service import AmiamiService
 
-
-def format_order(order: OrderInfo) -> str:
+@inject
+def format_order(order: OrderInfo, jpy_to_usd_rate: float) -> str:
     order_status_emoji = "" if order.is_open else "✅"  # type: ignore[truthy-function]
+    order_price_usd = order.price * jpy_to_usd_rate
     title = (
         f"Order [{order.id}]({order.page_link}): "
-        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥, {len(order.items)} items:"
+        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥/{order_price_usd:.2f}$, {len(order.items)} items:"
     )
     items = ""
     for item in order.items:
         item_status_emoji = "✅" if item.in_stock_flag > 0 else "❌"
-        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥"
+        item_price_usd = item.price * jpy_to_usd_rate
+        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥/{item_price_usd:.2f}$"
 
     return f"{title}{items}"
 
 
-def format_orders(orders: Iterable[OrderInfo]) -> str:
+async def format_orders(orders: Iterable[OrderInfo], fx_rates_service: FxRatesService = Provide["fx_rates_service"]) -> str:
     sorted_orders = sorted(orders, key=lambda o: o.scheduled_release)
-    return "\n---\n\n".join([format_order(o) for o in sorted_orders])
+    jpy_to_usd_rate = await fx_rates_service.get_jpy_to_usd_rate()
+    return "\n---\n\n".join([format_order(o, jpy_to_usd_rate) for o in sorted_orders])
 
 
 @inject
@@ -51,7 +55,7 @@ async def show_current_orders(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not orders:
         await update.message.reply_text("No current orders.")
         return
-    message = "# Current orders\n\n" + format_orders(orders)
+    message = "# Current orders\n\n" + await format_orders(orders)
     await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 
@@ -62,7 +66,7 @@ async def show_open(update: Update, context: ContextTypes.DEFAULT_TYPE, service:
     if not orders:
         await update.message.reply_text("No open orders.")
         return
-    message = "# Open orders\n\n" + format_orders(orders)
+    message = "# Open orders\n\n" + await format_orders(orders)
     await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 
@@ -75,7 +79,7 @@ async def update_and_show_current(update: Update, context: ContextTypes.DEFAULT_
     if not orders:
         await update.message.reply_text("No current orders.")
         return
-    message = "# Current orders\n\n" + format_orders(orders)
+    message = "# Current orders\n\n" + await format_orders(orders)
     await update.message.reply_markdown_v2(telegramify_markdown.markdownify(message))
 
 

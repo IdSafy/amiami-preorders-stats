@@ -1,6 +1,7 @@
 from dependency_injector import containers, providers
 
 from amiami_api.api import AmiAmiApi
+from amiami_api.fx_rates import FxRatesService
 from amiami_api.service import AmiamiService
 from amiami_api.store import AmiAmiOrdersFileStore, AmiAmiOrdersStore
 from amiami_api.telegram_bot import create_bot
@@ -10,6 +11,11 @@ class DIContainer(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(modules=[".web", ".telegram_bot"])
 
     config = providers.Configuration()
+
+    fx_rates_service = providers.Singleton(
+        FxRatesService,
+        access_key=config.fx_rates_access_key,
+    )
     api = providers.Singleton(
         AmiAmiApi,
         username=config.username,

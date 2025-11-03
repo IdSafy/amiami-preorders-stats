@@ -12,3 +12,4 @@ class Config(BaseSettings):
     store_file_path: Path = Field(default=Path("./orders.json"))
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")
     telegram_bot_white_list: list[str] = Field(default_factory=list, alias="TELEGRAM_BOT_WHITE_LIST")
+    fx_rates_access_key: str = Field(alias="FX_RATES_ACCESS_KEY")
