@@ -15,13 +15,13 @@ def format_order(order: OrderInfo, jpy_to_usd_rate: float) -> str:
     order_price_usd = int(order.price * jpy_to_usd_rate)
     title = (
         f"Order [{order.id}]({order.page_link}): "
-        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥ / {order_price_usd:.2f}$, {len(order.items)} items:"
+        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥ / {order_price_usd}$, {len(order.items)} items:"
     )
     items = ""
     for item in order.items:
         item_status_emoji = "✅" if item.in_stock_flag > 0 else "❌"
         item_price_usd = item.price * jpy_to_usd_rate
-        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥ / {item_price_usd:.2f}$"
+        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥ / {item_price_usd}$"
 
     return f"{title}{items}"
 
