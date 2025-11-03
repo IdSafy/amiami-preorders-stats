@@ -12,16 +12,16 @@ from amiami_api.service import AmiamiService
 @inject
 def format_order(order: OrderInfo, jpy_to_usd_rate: float) -> str:
     order_status_emoji = "" if order.is_open else "✅"  # type: ignore[truthy-function]
-    order_price_usd = order.price * jpy_to_usd_rate
+    order_price_usd = int(order.price * jpy_to_usd_rate)
     title = (
         f"Order [{order.id}]({order.page_link}): "
-        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥/{order_price_usd:.2f}$, {len(order.items)} items:"
+        f"{order_status_emoji}, {order.scheduled_release.strftime('%b %Y')}, {order.price}¥ / {order_price_usd:.2f}$, {len(order.items)} items:"
     )
     items = ""
     for item in order.items:
         item_status_emoji = "✅" if item.in_stock_flag > 0 else "❌"
         item_price_usd = item.price * jpy_to_usd_rate
-        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥/{item_price_usd:.2f}$"
+        items += f"\n- [{item.id}]({item.page_link}): {item_status_emoji}, {item.name}, {item.price}¥ / {item_price_usd:.2f}$"
 
     return f"{title}{items}"
 
